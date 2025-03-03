@@ -1,0 +1,5 @@
+feedparser
+azure-functions
+azure-storage-blob
+azure-cosmos
+azure-identity

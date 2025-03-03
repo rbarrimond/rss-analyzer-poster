@@ -34,6 +34,10 @@ resource "azurerm_linux_function_app" "func_rssfeeddownloader" {
         "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
         "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
         "AZURE_STORAGEACCOUNT_FILEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
+        "AZURE_STORAGE_ACCOUNT_URL" = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
+        "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
+        "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
     }
 
     identity {
@@ -60,6 +64,10 @@ resource "azurerm_linux_function_app" "func_contentsummarizer" {
         "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
         "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
         "AZURE_STORAGEACCOUNT_FILEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
+        "AZURE_STORAGE_ACCOUNT_URL" = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
+        "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
+        "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
     }
 
     identity {
@@ -83,6 +91,10 @@ resource "azurerm_linux_function_app" "func_contentranker" {
 
     app_settings = { 
         "AZURE_COSMOS_RESOURCEENDPOINT" = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_STORAGE_ACCOUNT_URL" = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
+        "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
+        "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
     }
 
     identity {
@@ -106,6 +118,10 @@ resource "azurerm_linux_function_app" "func_linkedinpostsuggester" {
 
     app_settings = { 
         "AZURE_COSMOS_RESOURCEENDPOINT" = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_STORAGE_ACCOUNT_URL" = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
+        "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
+        "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
     }
 
     identity {
