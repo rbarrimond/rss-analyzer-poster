@@ -14,7 +14,7 @@ resource "azurerm_cosmosdb_account" "cosmos_cosmosdb" {
   }
 
   geo_location {
-    location          = "eastus"
+    location          = azurerm_resource_group.rg.location
     failover_priority = 0
   }
 
@@ -27,6 +27,6 @@ resource "azurerm_cosmosdb_mongo_database" "cosmos_cosmosdbmongo" {
   name                = "mongo${var.resource_suffix}"
   resource_group_name = azurerm_resource_group.rg.name
   account_name        = azurerm_cosmosdb_account.cosmos_cosmosdb.name
-  throughput          = 400
+  throughput          = 400 # Ensure this is set to a level that meets your needs and budget
 }
 
