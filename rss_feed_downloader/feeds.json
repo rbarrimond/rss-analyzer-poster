@@ -1,0 +1,7 @@
+{
+  "feeds": [
+    "https://example.com/rss1",
+    "https://example.com/rss2",
+    "https://example.com/rss3"
+  ]
+}
