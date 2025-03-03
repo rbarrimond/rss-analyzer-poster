@@ -9,6 +9,14 @@ resource "azurerm_storage_account" "strg_storageaccount" {
   public_network_access_enabled = true
 }
 
+# Create a Blob Container for Function App Configurations
+
+resource "azurerm_storage_container" "config_container" {
+  name                  = "config"
+  storage_account_id    = azurerm_storage_account.strg_storageaccount.id
+  container_access_type = "private"
+}
+
 # Create an Azure Storage Account
 
 resource "azurerm_storage_account" "strg_funcdep" {
