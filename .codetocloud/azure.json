@@ -1,0 +1,72 @@
+{
+  "iacTypes": [
+    "terraform"
+  ],
+  "resources": [
+    {
+      "type": "azurefunctions",
+      "instances": [
+        {
+          "name": "rssFeedDownloader"
+        },
+        {
+          "name": "contentSummarizer"
+        },
+        {
+          "name": "contentRanker"
+        },
+        {
+          "name": "linkedinPostSuggester"
+        }
+      ]
+    },
+    {
+      "type": "azurestorageaccount",
+      "instances": [
+        {
+          "name": "storageAccount"
+        }
+      ]
+    },
+    {
+      "type": "azurecosmosdb",
+      "instances": [
+        {
+          "name": "cosmosDB"
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "source": "${azurefunctions.rssFeedDownloader}",
+      "target": "${azurestorageaccount.storageAccount}",
+      "connection": "system-identity",
+      "store": "",
+      "customKeys": {}
+    },
+    {
+      "source": "${azurefunctions.contentSummarizer}",
+      "target": "${azurestorageaccount.storageAccount}",
+      "connection": "system-identity",
+      "store": "",
+      "customKeys": {}
+    },
+    {
+      "source": "${azurefunctions.contentRanker}",
+      "target": "${azurecosmosdb.cosmosDB}",
+      "connection": "system-identity",
+      "store": "",
+      "customKeys": {}
+    },
+    {
+      "source": "${azurefunctions.linkedinPostSuggester}",
+      "target": "${azurecosmosdb.cosmosDB}",
+      "connection": "system-identity",
+      "store": "",
+      "customKeys": {}
+    }
+  ],
+  "services": [],
+  "settings": []
+}
