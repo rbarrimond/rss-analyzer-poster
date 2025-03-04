@@ -9,7 +9,6 @@ from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
-
 def main(myTimer: func.TimerRequest) -> None:
     logging.info('RSS Feed Downloader triggered.')
 
