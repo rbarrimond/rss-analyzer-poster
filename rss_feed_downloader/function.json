@@ -6,5 +6,7 @@
       "direction": "in",
       "schedule": "0 0 6 * * *"
     }
-  ]
+  ],
+  "scriptFile": "__init__.py",
+  "entryPoint": "main"
 }
