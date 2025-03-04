@@ -1,34 +1,62 @@
-# Use the default behaviours of the Azure Provider
+# ===================================================================
+# Azure Provider Configuration
+# Configures the Azure provider with default settings and specifies
+# the subscription ID to be used for resource management.
+# ===================================================================
 provider "azurerm" {
   features {}
   subscription_id = var.subscription_id
 }
 
+# ===================================================================
+# Azure Client Configuration
+# Retrieves the current Azure client configuration for use in
+# resource management and deployment.
+# ===================================================================
 data "azurerm_client_config" "current" {}
 
-
-# Create an Azure Resource Group
-
+# ===================================================================
+# Azure Resource Group
+# Creates a resource group to contain all related Azure resources
+# for the RSS Analyzer and LinkedIn Poster project.
+# ===================================================================
 resource "azurerm_resource_group" "rg" {
-	name		=	"rg${var.resource_suffix}"
-	location	=	var.location
-	tags  		= {
-		azd-env-name = var.resource_suffix
-	}
+  name     = "rg${var.resource_suffix}"
+  location = var.location
+  tags = {
+    azd-env-name = var.resource_suffix
+  }
 }
 
+# ===================================================================
+# Azure Application Insights
+# Sets up Application Insights for monitoring and logging of
+# Azure Functions and other resources.
+# ===================================================================
+resource "azurerm_application_insights" "app_insights" {
+  name                = "appInsights${var.resource_suffix}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  application_type    = "web"
+}
+
+# ===================================================================
+# Azure Linux Function App: RSS Feed Downloader
+# Deploys a Linux-based Azure Function App for downloading RSS feeds.
+# Configures storage and service plan settings.
+# ===================================================================
 resource "azurerm_linux_function_app" "func_rssfeeddownloader" {
-    name                = "rssFeedDownloader${var.resource_suffix}"
-    resource_group_name = azurerm_resource_group.rg.name
-    location            = azurerm_resource_group.rg.location
+  name                = "rssFeedDownloader${var.resource_suffix}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
 
-    storage_account_name       = azurerm_storage_account.strg_funcdep.name
-    storage_account_access_key = azurerm_storage_account.strg_funcdep.primary_access_key
-    service_plan_id            = azurerm_service_plan.funcplanlinux.id
+  storage_account_name       = azurerm_storage_account.strg_funcdep.name
+  storage_account_access_key = azurerm_storage_account.strg_funcdep.primary_access_key
+  service_plan_id            = azurerm_service_plan.funcplanlinux.id
 
-    site_config {
-	}
-
+  site_config {
+        # always_on = true
+    }
     app_settings = { 
         "AZURE_STORAGEACCOUNT_BLOBENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
         "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
@@ -38,13 +66,12 @@ resource "azurerm_linux_function_app" "func_rssfeeddownloader" {
         "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
         "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
         "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
+        "APPINSIGHTS_INSTRUMENTATIONKEY" = azurerm_application_insights.app_insights.instrumentation_key
     }
 
     identity {
         type = "SystemAssigned" 
     }
-
-	
 }
 
 resource "azurerm_linux_function_app" "func_contentsummarizer" {
@@ -55,10 +82,9 @@ resource "azurerm_linux_function_app" "func_contentsummarizer" {
     storage_account_name       = azurerm_storage_account.strg_funcdep.name
     storage_account_access_key = azurerm_storage_account.strg_funcdep.primary_access_key
     service_plan_id            = azurerm_service_plan.funcplanlinux.id
-
     site_config {
-	}
-
+        # always_on = true
+    }
     app_settings = { 
         "AZURE_STORAGEACCOUNT_BLOBENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
         "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
@@ -68,13 +94,12 @@ resource "azurerm_linux_function_app" "func_contentsummarizer" {
         "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
         "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
         "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
+        "APPINSIGHTS_INSTRUMENTATIONKEY" = azurerm_application_insights.app_insights.instrumentation_key
     }
 
     identity {
         type = "SystemAssigned" 
     }
-
-	
 }
 
 resource "azurerm_linux_function_app" "func_contentranker" {
@@ -87,21 +112,24 @@ resource "azurerm_linux_function_app" "func_contentranker" {
     service_plan_id            = azurerm_service_plan.funcplanlinux.id
 
     site_config {
-	}
+        # always_on = true
+    }
 
     app_settings = { 
-        "AZURE_COSMOS_RESOURCEENDPOINT" = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_STORAGEACCOUNT_BLOBENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
+        "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
+        "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
+        "AZURE_STORAGEACCOUNT_FILEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
         "AZURE_STORAGE_ACCOUNT_URL" = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
         "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
         "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
         "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
+        "APPINSIGHTS_INSTRUMENTATIONKEY" = azurerm_application_insights.app_insights.instrumentation_key
     }
 
     identity {
         type = "SystemAssigned" 
     }
-
-	
 }
 
 resource "azurerm_linux_function_app" "func_linkedinpostsuggester" {
@@ -114,21 +142,24 @@ resource "azurerm_linux_function_app" "func_linkedinpostsuggester" {
     service_plan_id            = azurerm_service_plan.funcplanlinux.id
 
     site_config {
-	}
+        # always_on = true
+    }
 
     app_settings = { 
-        "AZURE_COSMOS_RESOURCEENDPOINT" = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
+        "AZURE_STORAGEACCOUNT_BLOBENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
+        "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
+        "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
+        "AZURE_STORAGEACCOUNT_FILEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
         "AZURE_STORAGE_ACCOUNT_URL" = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
         "AZURE_COSMOS_DB_ENDPOINT"  = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
         "AZURE_COSMOS_DB_NAME"      = "mongo${var.resource_suffix}"
         "AZURE_COSMOS_DB_CONTAINER" = "rss_feeds"
+        "APPINSIGHTS_INSTRUMENTATIONKEY" = azurerm_application_insights.app_insights.instrumentation_key
     }
 
     identity {
         type = "SystemAssigned" 
     }
-
-	
 }
 
 
