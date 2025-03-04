@@ -81,7 +81,7 @@ resource "azapi_resource" "fix_linux_fx_version" {
   body = jsonencode({
     properties = {
       siteConfig = {
-        linuxFxVersion = "DOTNET|8.0"  # Replace with your required runtime
+        linuxFxVersion = "Python|3.11"  # Replace with your required runtime
       }
     }
   })
