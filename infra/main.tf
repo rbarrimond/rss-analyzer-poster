@@ -1,14 +1,4 @@
 # ===================================================================
-# Azure Provider Configuration
-# Configures the Azure provider with default settings and specifies
-# the subscription ID to be used for resource management.
-# ===================================================================
-provider "azurerm" {
-  features {}
-  subscription_id = var.subscription_id
-}
-
-# ===================================================================
 # Azure Client Configuration
 # Retrieves the current Azure client configuration for use in
 # resource management and deployment.
@@ -81,4 +71,18 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
   }
 }
 
+# ✅ Use azapi_resource to manually set the runtime version
+resource "azapi_resource" "fix_linux_fx_version" {
+  type      = "Microsoft.Web/sites@2022-09-01"  # Ensure correct API version
+  name      = azurerm_linux_function_app.rss_analyzer_poster.name
+  location  = azurerm_linux_function_app.rss_analyzer_poster.location
+  parent_id = azurerm_resource_group.rg.id
 
+  body = jsonencode({
+    properties = {
+      siteConfig = {
+        linuxFxVersion = "DOTNET|8.0"  # Replace with your required runtime
+      }
+    }
+  })
+}
