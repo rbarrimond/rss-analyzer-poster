@@ -50,9 +50,9 @@ output "cosmos_db_container" {
   value = "rss_feeds"
 }
 
-# Output for the Application Insights Instrumentation Key
-output "appinsights_instrumentation_key" {
-  value = azurerm_application_insights.app_insights.instrumentation_key
+# Output for the Application Insights Connection String
+output "applicationinsights_connection_string" {
+  value = azurerm_application_insights.app_insights.connection_string
   sensitive = true
 }
 
