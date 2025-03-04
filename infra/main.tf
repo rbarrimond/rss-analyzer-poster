@@ -57,8 +57,6 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
 
   site_config {
     always_on = true
-    # Specify the Python version
-    linux_fx_version = "Python|3.11"  # Set the desired Python version
     # Health check configuration
     health_check_path = "/health"  # Endpoint for health checks
     health_check_eviction_time_in_min = 10  # Time in minutes to evict unhealthy instances
@@ -66,6 +64,7 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"              = "python"
+    "PYTHON_VERSION"                        = "3.11"  # Set the desired Python version
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.app_insights.connection_string
     "AZURE_STORAGEACCOUNT_BLOBENDPOINT"     = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT"    = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
@@ -74,6 +73,7 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "AZURE_COSMOS_DB_ENDPOINT"              = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
     "AZURE_COSMOS_DB_NAME"                  = azurerm_cosmosdb_mongo_database.cosmos_cosmosdbmongo.name
     "AZURE_COSMOS_DB_CONTAINER"             = "rss_feeds"
+    "WEBSITE_RUN_FROM_PACKAGE"              = "1"  # Enable running from package
   }
 
   identity {
