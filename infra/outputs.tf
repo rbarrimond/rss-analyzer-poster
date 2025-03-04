@@ -53,6 +53,7 @@ output "cosmos_db_container" {
 # Output for the Application Insights Instrumentation Key
 output "appinsights_instrumentation_key" {
   value = azurerm_application_insights.app_insights.instrumentation_key
+  sensitive = true
 }
 
 # Output for the Content Summarizer Function App ID
