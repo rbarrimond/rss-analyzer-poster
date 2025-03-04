@@ -1,3 +1,24 @@
+# ===================================================================
+# Azure Storage Account Configuration
+# 
+# An Azure Storage Account provides a unique namespace in Azure for 
+# storing and accessing data objects such as blobs, files, queues, 
+# and tables. It is a fundamental building block for cloud storage 
+# solutions, offering scalable, durable, and secure storage options.
+# 
+# Purpose in Infrastructure:
+# - Stores data for Azure Function Apps, such as input and output 
+#   data, logs, and configuration files.
+# - Supports various storage types, including Blob, File, Queue, 
+#   and Table storage, to meet diverse application needs.
+# - Configured with a private access type to ensure data security 
+#   and restrict public access.
+# 
+# In this configuration, the Storage Account is set up with a 
+# private container access type, ensuring that only authenticated 
+# requests can access the stored data.
+# ===================================================================
+
 # Create an Azure Storage Account
 
 resource "azurerm_storage_account" "strg_storageaccount" {
