@@ -29,13 +29,13 @@ def main(myTimer: func.TimerRequest) -> None:
     logging.info('RSS Feed Downloader triggered.')
 
     # Retrieve environment variables
-    storage_account_url = os.getenv('AZURE_STORAGE_ACCOUNT_URL')
+    azure_storageaccount_blobendpoint = os.getenv('AZURE_STORAGEACCOUNT_BLOBENDPOINT')
     cosmos_db_endpoint = os.getenv('AZURE_COSMOS_DB_ENDPOINT')
     cosmos_db_name = os.getenv('AZURE_COSMOS_DB_NAME')
     cosmos_db_container = os.getenv('AZURE_COSMOS_DB_CONTAINER')
 
     # Connect to Azure Blob Storage using managed identity
-    blob_service_client = BlobServiceClient(account_url=storage_account_url, 
+    blob_service_client = BlobServiceClient(account_url=azure_storageaccount_blobendpoint, 
                                             credential=DefaultAzureCredential())
 
     # Connect to Azure Cosmos DB using managed identity
