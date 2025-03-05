@@ -9,25 +9,6 @@ from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
-<<<<<<< HEAD
-
-def rss_feed_downloader(myTimer: func.TimerRequest) -> None:
-    """
-    Downloads RSS feeds and stores them in Azure Cosmos DB.
-
-    Triggered by a timer, this function:
-    1. Retrieves environment variables for Azure services.
-    2. Connects to Azure Blob Storage and Cosmos DB using managed identity.
-    3. Loads feed URLs from a configuration file in Blob Storage.
-    4. Parses each feed URL and extracts article data.
-    5. Inserts the article data into Cosmos DB.
-
-    Args:
-        myTimer (func.TimerRequest): The timer request object.
-
-    Returns:
-        None
-=======
 app = func.FunctionApp()
 
 @app.function_name(name="rssFeedDownloader")
@@ -35,7 +16,6 @@ app = func.FunctionApp()
 def rssFeedDownloader(myTimer: func.TimerRequest) -> None:
     """
     Downloads RSS feeds and stores them in Azure Cosmos DB.
->>>>>>> v2
     """
     logging.info('RSS Feed Downloader triggered.')
 
@@ -50,11 +30,7 @@ def rssFeedDownloader(myTimer: func.TimerRequest) -> None:
                                             credential=DefaultAzureCredential())
 
     # Connect to Azure Cosmos DB using managed identity
-<<<<<<< HEAD
-    cosmos_client = CosmosClient(url=cosmos_db_endpoint,
-=======
     cosmos_client = CosmosClient(url=cosmos_db_endpoint, 
->>>>>>> v2
                                  credential=DefaultAzureCredential())
     database = cosmos_client.get_database_client(cosmos_db_name)
     container = database.get_container_client(cosmos_db_container)
