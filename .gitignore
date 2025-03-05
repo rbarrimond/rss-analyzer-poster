@@ -185,3 +185,6 @@ azurite_data/
 
 # Azurite JSON files
 __azurite*.json
+
+# Ignore zip files
+*.zip
