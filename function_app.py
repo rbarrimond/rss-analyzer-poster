@@ -9,7 +9,8 @@ from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
-def main(myTimer: func.TimerRequest) -> None:
+
+def rss_feed_downloader(myTimer: func.TimerRequest) -> None:
     """
     Main function to download RSS feeds and store them in Azure Cosmos DB.
 
@@ -29,23 +30,25 @@ def main(myTimer: func.TimerRequest) -> None:
     logging.info('RSS Feed Downloader triggered.')
 
     # Retrieve environment variables
-    azure_storageaccount_blobendpoint = os.getenv('AZURE_STORAGEACCOUNT_BLOBENDPOINT')
+    azure_storageaccount_blobendpoint = os.getenv(
+        'AZURE_STORAGEACCOUNT_BLOBENDPOINT')
     cosmos_db_endpoint = os.getenv('AZURE_COSMOS_DB_ENDPOINT')
     cosmos_db_name = os.getenv('AZURE_COSMOS_DB_NAME')
     cosmos_db_container = os.getenv('AZURE_COSMOS_DB_CONTAINER')
 
     # Connect to Azure Blob Storage using managed identity
-    blob_service_client = BlobServiceClient(account_url=azure_storageaccount_blobendpoint, 
+    blob_service_client = BlobServiceClient(account_url=azure_storageaccount_blobendpoint,
                                             credential=DefaultAzureCredential())
 
     # Connect to Azure Cosmos DB using managed identity
-    cosmos_client = CosmosClient(url=cosmos_db_endpoint, 
-                                credential=DefaultAzureCredential())
+    cosmos_client = CosmosClient(url=cosmos_db_endpoint,
+                                 credential=DefaultAzureCredential())
     database = cosmos_client.get_database_client(cosmos_db_name)
     container = database.get_container_client(cosmos_db_container)
 
     # Load feed URLs from configuration file
-    config_container_client = blob_service_client.get_container_client('config')
+    config_container_client = blob_service_client.get_container_client(
+        'config')
     blob_client = config_container_client.get_blob_client('feeds.json')
     feeds_json = blob_client.download_blob().readall()
     config = json.loads(feeds_json)
