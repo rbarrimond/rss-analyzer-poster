@@ -12,17 +12,17 @@ from azure.storage.blob import BlobServiceClient
 
 def rss_feed_downloader(myTimer: func.TimerRequest) -> None:
     """
-    Main function to download RSS feeds and store them in Azure Cosmos DB.
+    Downloads RSS feeds and stores them in Azure Cosmos DB.
 
-    This function is triggered by a timer and performs the following steps:
-    1. Retrieves necessary environment variables for Azure services.
-    2. Connects to Azure Blob Storage and Azure Cosmos DB using managed identity.
-    3. Loads feed URLs from a configuration file stored in Azure Blob Storage.
-    4. Processes each feed URL, parses the feed, and extracts article data.
-    5. Inserts the article data into Azure Cosmos DB.
+    Triggered by a timer, this function:
+    1. Retrieves environment variables for Azure services.
+    2. Connects to Azure Blob Storage and Cosmos DB using managed identity.
+    3. Loads feed URLs from a configuration file in Blob Storage.
+    4. Parses each feed URL and extracts article data.
+    5. Inserts the article data into Cosmos DB.
 
     Args:
-        myTimer (func.TimerRequest): The timer request object that triggers the function.
+        myTimer (func.TimerRequest): The timer request object.
 
     Returns:
         None
@@ -30,8 +30,7 @@ def rss_feed_downloader(myTimer: func.TimerRequest) -> None:
     logging.info('RSS Feed Downloader triggered.')
 
     # Retrieve environment variables
-    azure_storageaccount_blobendpoint = os.getenv(
-        'AZURE_STORAGEACCOUNT_BLOBENDPOINT')
+    azure_storageaccount_blobendpoint = os.getenv('AZURE_STORAGEACCOUNT_BLOBENDPOINT')
     cosmos_db_endpoint = os.getenv('AZURE_COSMOS_DB_ENDPOINT')
     cosmos_db_name = os.getenv('AZURE_COSMOS_DB_NAME')
     cosmos_db_container = os.getenv('AZURE_COSMOS_DB_CONTAINER')
@@ -47,8 +46,7 @@ def rss_feed_downloader(myTimer: func.TimerRequest) -> None:
     container = database.get_container_client(cosmos_db_container)
 
     # Load feed URLs from configuration file
-    config_container_client = blob_service_client.get_container_client(
-        'config')
+    config_container_client = blob_service_client.get_container_client('config')
     blob_client = config_container_client.get_blob_client('feeds.json')
     feeds_json = blob_client.download_blob().readall()
     config = json.loads(feeds_json)
