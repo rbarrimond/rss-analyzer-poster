@@ -24,7 +24,6 @@ def rssAnalyzerPoster(myTimer: func.TimerRequest) -> None:
     analyze_and_update_recent_articles(
         AZURE_COSMOS_DB_ENDPOINT, AZURE_COSMOS_DB_NAME, AZURE_COSMOS_DB_CONTAINER)
 
-
 @app.function_name(name="rssAnalyzerPosterHttp")
 @app.route(route="analyze", methods=["POST"])
 def rssAnalyzerPosterHttp(req: func.HttpRequest) -> func.HttpResponse:
