@@ -8,5 +8,5 @@ azure-storage-blob
 azure-cosmos
 # azure-identity handles authentication with Azure
 azure-identity
-# openai is used for calling the OpenAI API
+# openai is used for calling the OpenAI API directly
 openai

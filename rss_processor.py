@@ -21,19 +21,17 @@ def process_and_store_feeds(azure_storageaccount_blobendpoint: str,
                             config_container_name: str = "config",
                             config_blob_name: str = "feeds.json") -> None:
     """
-    Processes RSS feeds and stores them in Azure Cosmos DB.
+    Fetches RSS feed URLs from blob storage, parses them, and saves RSS entries in Cosmos DB.
     """
     logging.info('Processing RSS feeds.')
 
-    # Connect to Azure Blob Storage using managed identity
+    # Connect to Azure Blob Storage and Cosmos DB via managed identity
     blob_service_client = BlobServiceClient(
         account_url=azure_storageaccount_blobendpoint,
         credential=DefaultAzureCredential()
     )
-
-    # Connect to Azure Cosmos DB using managed identity
     cosmos_client = CosmosClient(
-        url=cosmos_db_endpoint, 
+        url=cosmos_db_endpoint,
         credential=DefaultAzureCredential()
     )
     database = cosmos_client.get_database_client(cosmos_db_name)
@@ -45,11 +43,10 @@ def process_and_store_feeds(azure_storageaccount_blobendpoint: str,
     feeds_json = blob_client.download_blob().readall()
     config = json.loads(feeds_json)
 
-    # Process each feed URL
+    # Parse and store articles
     for feed_url in config.get('feeds', []):
         logging.info('Processing feed: %s', feed_url)
         feed = feedparser.parse(feed_url)
-        # Store feed entries in Cosmos DB
         for entry in feed.entries:
             container.upsert_item(entry)
 
@@ -59,16 +56,19 @@ def analyze_and_update_recent_articles(cosmos_db_endpoint: str,
                                        cosmos_db_container: str,
                                        threshold_days: int = 7) -> None:
     """
-    Reads articles published within the last 'threshold_days', sends them to OpenAI for
-    summarization and scoring, then updates each article in the Cosmos DB container.
-    Skips articles that already have 'analysis_summary' or 'engagement_score'.
+    Summarizes recent articles and assigns an engagement score using Azure OpenAI. Only articles
+    published within 'threshold_days' are processed, and items already analyzed are skipped.
     """
-    logging.info('Analyzing recent articles with OpenAI.')
+    logging.info('Analyzing recent articles with Azure OpenAI.')
 
-    # Set your OpenAI API key from environment variable
-    openai.api_key = os.getenv("OPENAI_API_KEY", "")
+    # Configure Azure OpenAI
+    openai.api_type = "azure"
+    openai.api_key = os.getenv("AZURE_OPENAI_KEY", "")
+    openai.api_base = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    openai.api_version = "2023-03-15-preview"
+    azure_openai_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "my-deployment")
 
-    # Connect to Azure Cosmos DB using managed identity
+    # Connect to Cosmos DB container
     cosmos_client = CosmosClient(
         url=cosmos_db_endpoint,
         credential=DefaultAzureCredential()
@@ -76,27 +76,25 @@ def analyze_and_update_recent_articles(cosmos_db_endpoint: str,
     database = cosmos_client.get_database_client(cosmos_db_name)
     container = database.get_container_client(cosmos_db_container)
 
-    # Define the date threshold
-    cutoff_date = datetime.utcnow() - timedelta(days=threshold_days)
-
-    # Read recent items
+    # Filter out items based on date threshold
+    cutoff_date = datetime.now(datetime.timezone.utc) - timedelta(days=threshold_days)
     items = list(container.read_all_items(max_item_count=100))
 
     for item in items:
         try:
-            # Skip items if they've already been analyzed
+            # Skip articles if they're already summarized or scored
             if "analysis_summary" in item or "engagement_score" in item:
                 continue
 
+            # Only proceed if the "published" date is valid and recent
             published_str = item.get('published')
             if not published_str:
                 continue
-
             published_dt = parsedate_to_datetime(published_str)
             if published_dt < cutoff_date:
                 continue
 
-            # Get original text
+            # Retrieve the relevant body text for summarization
             content_text = ""
             if 'content' in item and isinstance(item['content'], list) and item['content']:
                 content_text = item['content'][0].get('value', '')
@@ -106,37 +104,37 @@ def analyze_and_update_recent_articles(cosmos_db_endpoint: str,
             if not content_text:
                 continue
 
-            # Prompt OpenAI for summary and score
             prompt_text = (
                 "Summarize the following text and provide a numerical engagement score (1-10) "
                 f"based on how interesting it might be:\n\n{content_text}\n\n"
                 "Respond in JSON format with keys: summary, score."
             )
 
+            # Call Azure OpenAI for chat-based summarization
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+                engine=azure_openai_deployment,
                 messages=[{"role": "user", "content": prompt_text}],
                 temperature=0.7,
                 max_tokens=150
             )
 
-            # Extract summary and score from OpenAI response
+            # Parse the response, ensuring it includes a valid summary and score
             try:
                 content = response.choices[0].message.content.strip()
-                # Expecting JSON such as: {"summary": "...", "score": 7}
                 parsed_response = json.loads(content)
-                summary_text = parsed_response.get("summary", "")
+                summary_text = parsed_response.get("summary", "No summary")
                 engagement_score = parsed_response.get("score", 5)
-            except json.JSONDecodeError:
-                # Fallback if response is not valid JSON
+                if not isinstance(engagement_score, int):
+                    engagement_score = 5
+            except (json.JSONDecodeError, TypeError):
                 summary_text = "No summary"
                 engagement_score = 5
 
-            # Update the article
+            # Update the item in Cosmos DB
             item["analysis_summary"] = summary_text
             item["engagement_score"] = engagement_score
-
             container.upsert_item(item)
-            logging.info("OpenAI summary/score added to article %s.", item.get("id"))
-        except Exception as e:
+            logging.info("Azure OpenAI summary/score added to article %s.", item.get("id"))
+
+        except (openai.error.OpenAIError, KeyError) as e:
             logging.error("Error processing item %s: %s", item.get("id"), e)
