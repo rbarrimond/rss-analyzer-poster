@@ -1,5 +1,12 @@
+# feedparser is used to parse RSS feeds
 feedparser
+# azure-functions is used for Azure Functions
 azure-functions
+# azure-storage-blob is used to interact with Azure Blob Storage
 azure-storage-blob
+# azure-cosmos is used to interact with Azure Cosmos DB
 azure-cosmos
+# azure-identity handles authentication with Azure
 azure-identity
+# openai is used for calling the OpenAI API
+openai
