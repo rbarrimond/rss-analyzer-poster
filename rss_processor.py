@@ -1,22 +1,19 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta
-from email.utils import parsedate_to_datetime
-from typing import Any
-
-import feedparser  # Third-party library for parsing RSS feeds
+from typing import List
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 from msal import ConfidentialClientApplication
 from msgraph.core import GraphClient
-import openai  # For calling the OpenAI API
+import openai
+import feedparser
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,  # Set the logging level
-    format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',  # Define the log message format
-    datefmt='%Y-%m-%d %H:%M:%S'  # Define the date format
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 
 # Global constants initialized by environment variables
@@ -24,35 +21,47 @@ CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TENANT_ID = os.getenv('TENANT_ID')
 
-def process_and_store_feeds(azure_storageaccount_blobendpoint: str,
-                            site_id: str,
-                            list_id: str,
-                            config_container_name: str = "config",
-                            config_blob_name: str = "feeds.json") -> None:
-    """
-    Fetches RSS feed URLs from blob storage, parses them, and saves RSS entries in Microsoft Lists.
-    """
-    logging.info('Processing RSS feeds.')
 
-    # Connect to Azure Blob Storage via managed identity
-    blob_service_client = BlobServiceClient(
-        account_url=azure_storageaccount_blobendpoint,
-        credential=DefaultAzureCredential()
-    )
+def download_blob_content(blob_service_client: BlobServiceClient, container_name: str, blob_name: str) -> str:
+    """
+    Downloads the content of a blob from Azure Blob Storage and returns it as a string.
 
+    :param blob_service_client: The BlobServiceClient instance to interact with Azure Blob Storage.
+    :param container_name: The name of the container where the blob is stored.
+    :param blob_name: The name of the blob to download.
+    :return: The content of the blob as a string.
+    """
+    container_client = blob_service_client.get_container_client(container_name)
+    blob_client = container_client.get_blob_client(blob_name)
+    blob_data = blob_client.download_blob().readall()
+    return blob_data.decode('utf-8').strip()
+
+
+def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str, list_id: str, 
+                            config_container_name: str, config_blob_name: str) -> None:
+    """
+    Processes RSS feeds from a configuration file stored in Azure Blob Storage and stores the entries 
+    in Microsoft Lists.
+
+    :param blob_service_client: The BlobServiceClient instance to interact with Azure Blob Storage.
+    :param site_id: The ID of the SharePoint site containing the list.
+    :param list_id: The ID of the Microsoft List where entries will be stored.
+    :param config_container_name: The name of the container where the configuration blob is stored.
+    :param config_blob_name: The name of the configuration blob containing RSS feed URLs.
+    """
     # Initialize Microsoft Graph client
     app = ConfidentialClientApplication(
         CLIENT_ID,
         authority=f"https://login.microsoftonline.com/{TENANT_ID}",
         client_credential=CLIENT_SECRET
     )
-    token = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
+    token = app.acquire_token_for_client(
+        scopes=["https://graph.microsoft.com/.default"])
     client = GraphClient(credential=token['access_token'])
 
     # Load feed URLs from configuration file
-    config_container_client = blob_service_client.get_container_client(config_container_name)
-    blob_client = config_container_client.get_blob_client(config_blob_name)
-    feeds_json = blob_client.download_blob().readall()
+    feeds_json = download_blob_content(
+        blob_service_client, config_container_name, config_blob_name)
     config = json.loads(feeds_json)
 
     # Parse and store articles
@@ -70,22 +79,35 @@ def process_and_store_feeds(azure_storageaccount_blobendpoint: str,
                 }
             }
             # Insert item into Microsoft Lists
-            client.post(f'/sites/{site_id}/lists/{list_id}/items', json=item_data)
-
-def update_item_in_list(client, list_id, item_id, summary_text, engagement_score):
-    update_data = {
-        "fields": {
-            "analysis_summary": summary_text,
-            "engagement_score": engagement_score
-        }
-    }
-    client.patch(
-        f'/sites/YOUR_SITE_ID/lists/{list_id}/items/{item_id}', json=update_data)
+            client.post(
+                f'/sites/{site_id}/lists/{list_id}/items', json=item_data)
+            logging.info('Added article: %s', entry.get('title', 'No Title'))
 
 
-def analyze_and_update_recent_articles(client):
+def analyze_and_update_recent_articles(client: GraphClient, site_id: str, list_id: str, 
+                                       blob_service_client: BlobServiceClient, system_container_name: str, 
+                                       system_blob_name: str, user_container_name: str, user_blob_name: str) -> None:
+    """
+    Analyzes recent articles from Microsoft Lists, summarizes them using Azure OpenAI, and updates the list 
+    with the summaries and engagement scores.
+
+    :param client: The GraphClient instance to interact with Microsoft Graph API.
+    :param site_id: The ID of the SharePoint site containing the list.
+    :param list_id: The ID of the Microsoft List containing articles to analyze.
+    :param blob_service_client: The BlobServiceClient instance to interact with Azure Blob Storage.
+    :param system_container_name: The name of the container where the system role content blob is stored.
+    :param system_blob_name: The name of the blob containing the system role content.
+    :param user_container_name: The name of the container where the user role content blob is stored.
+    :param user_blob_name: The name of the blob containing the user role content.
+    """
+    # Load role content from Azure Blob Storage
+    system_content = download_blob_content(
+        blob_service_client, system_container_name, system_blob_name)
+    user_content_template = download_blob_content(
+        blob_service_client, user_container_name, user_blob_name)
+
     # Fetch items from Microsoft List
-    response = client.get(f'/sites/YOUR_SITE_ID/lists/YOUR_LIST_ID/items')
+    response = client.get(f'/sites/{site_id}/lists/{list_id}/items')
     items = response.json().get('value', [])
 
     for item in items:
@@ -93,16 +115,16 @@ def analyze_and_update_recent_articles(client):
         if not content_text:
             continue
 
-        prompt_text = (
-            "Summarize the following text and provide a numerical engagement score (1-10) "
-            f"based on how interesting it might be:\n\n{content_text}\n\n"
-            "Respond in JSON format with keys: summary, score."
-        )
+        # Format the user message with the content text
+        user_content = user_content_template.format(content_text=content_text)
 
         # Call Azure OpenAI for chat-based summarization
         response = openai.ChatCompletion.create(
-            engine=azure_openai_deployment,
-            messages=[{"role": "user", "content": prompt_text}],
+            engine=os.getenv('AZURE_OPENAI_DEPLOYMENT'),
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
             temperature=0.7,
             max_tokens=150
         )
@@ -119,8 +141,14 @@ def analyze_and_update_recent_articles(client):
             summary_text = "No summary"
             engagement_score = 5
 
-        # Update the item in Microsoft List
-        update_item_in_list(client, 'YOUR_LIST_ID',
-                            item['id'], summary_text, engagement_score)
+        # Update the item in Microsoft List directly
+        update_data = {
+            "fields": {
+                "analysis_summary": summary_text,
+                "engagement_score": engagement_score
+            }
+        }
+        client.patch(
+            f'/sites/{site_id}/lists/{list_id}/items/{item["id"]}', json=update_data)
         logging.info(
             "Azure OpenAI summary/score added to article %s.", item.get("id"))
