@@ -10,16 +10,13 @@
           "name": "rssAnalyzerPoster"
         },
         {
-          "name": "rssFeedDownloader"
+          "name": "rssAnalyzerPosterHttp"
         },
         {
-          "name": "contentSummarizer"
+          "name": "rssSummarizerHttp"
         },
         {
-          "name": "contentRanker"
-        },
-        {
-          "name": "linkedinPostSuggester"
+          "name": "rssPosterHttp"
         }
       ]
     },
@@ -27,7 +24,10 @@
       "type": "azurestorageaccount",
       "instances": [
         {
-          "name": "storageAccount"
+          "name": "generalStorageAccount"
+        },
+        {
+          "name": "functionDeploymentStorageAccount"
         }
       ]
     },
@@ -35,41 +35,66 @@
       "type": "azurecosmosdb",
       "instances": [
         {
-          "name": "cosmosDB"
+          "name": "cosmosDBMongoAPI"
+        }
+      ]
+    },
+    {
+      "type": "azureapplicationinsights",
+      "instances": [
+        {
+          "name": "appInsights"
+        }
+      ]
+    },
+    {
+      "type": "azurerm_service_plan",
+      "instances": [
+        {
+          "name": "appServicePlan"
         }
       ]
     }
   ],
   "bindings": [
     {
-      "source": "${azurefunctions.rssFeedDownloader}",
-      "target": "${azurestorageaccount.storageAccount}",
-      "connection": "system-identity",
-      "store": "",
-      "customKeys": {}
+      "source": "rssAnalyzerPoster",
+      "target": "cosmosDBMongoAPI",
+      "connection": "system-identity"
     },
     {
-      "source": "${azurefunctions.contentSummarizer}",
-      "target": "${azurestorageaccount.storageAccount}",
-      "connection": "system-identity",
-      "store": "",
-      "customKeys": {}
+      "source": "rssAnalyzerPosterHttp",
+      "target": "cosmosDBMongoAPI",
+      "connection": "system-identity"
     },
     {
-      "source": "${azurefunctions.contentRanker}",
-      "target": "${azurecosmosdb.cosmosDB}",
-      "connection": "system-identity",
-      "store": "",
-      "customKeys": {}
+      "source": "rssSummarizerHttp",
+      "target": "cosmosDBMongoAPI",
+      "connection": "system-identity"
     },
     {
-      "source": "${azurefunctions.linkedinPostSuggester}",
-      "target": "${azurecosmosdb.cosmosDB}",
-      "connection": "system-identity",
-      "store": "",
-      "customKeys": {}
+      "source": "rssPosterHttp",
+      "target": "cosmosDBMongoAPI",
+      "connection": "system-identity"
     }
   ],
-  "services": [],
-  "settings": []
+  "services": {
+    "azureFunctions": [
+      "rssAnalyzerPoster",
+      "rssAnalyzerPosterHttp",
+      "rssSummarizerHttp",
+      "rssPosterHttp"
+    ],
+    "azureStorageAccount": {
+      "general": "generalStorageAccount",
+      "functionDeployment": "functionDeploymentStorageAccount"
+    },
+    "azureCosmosDB": {
+      "api": "cosmosDBMongoAPI"
+    },
+    "azureApplicationInsights": "appInsights",
+    "azureAppServicePlan": "appServicePlan"
+  },
+  "settings": [],
+  "infrastructure": "terraform"
 }
