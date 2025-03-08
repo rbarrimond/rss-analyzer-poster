@@ -31,6 +31,12 @@ resource "azurerm_application_insights" "app_insights" {
   application_type    = "web"
 }
 
+resource "azurerm_key_vault_secret" "app_insights_connection_string" {
+  name         = "AppInsightsConnectionString"
+  value        = azurerm_application_insights.app_insights.connection_string
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
 # ===================================================================
 # Azure Linux Function App: RSS Analyzer Poster
 # Deploys a Linux-based Azure Function App for the RSS Analyzer
@@ -55,7 +61,7 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"              = "python"
     "PYTHON_VERSION"                        = "3.11"  # Set the desired Python version
-    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.app_insights.connection_string
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.id})"
     "AZURE_STORAGEACCOUNT_BLOBENDPOINT"     = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT"    = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
     "AZURE_STORAGEACCOUNT_QUEUEENDPOINT"    = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
@@ -69,11 +75,12 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
 
   # Explicitly define dependencies
   depends_on = [
-    azurerm_service_plan.funcplanlinux
+    azurerm_service_plan.funcplanlinux,
+    azurerm_key_vault_secret.app_insights_connection_string
   ]
 }
 
-# ✅ Use azapi_resource to manually set the runtime version
+# Use azapi_resource to manually set the runtime version
 resource "azapi_resource" "fix_linux_fx_version" {
   type      = "Microsoft.Web/sites@2022-09-01"  # Ensure correct API version
   name      = azurerm_linux_function_app.rss_analyzer_poster.name
@@ -88,3 +95,4 @@ resource "azapi_resource" "fix_linux_fx_version" {
     }
   })
 }
+
