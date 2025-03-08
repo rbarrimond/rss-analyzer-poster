@@ -35,11 +35,6 @@ output "storage_account_url" {
   value = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
 }
 
-# Output for the Cosmos DB Endpoint
-output "cosmos_db_endpoint" {
-  value = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
-}
-
 # Output for the Cosmos DB Name
 output "cosmos_db_name" {
   value = "mongo${var.resource_suffix}"
