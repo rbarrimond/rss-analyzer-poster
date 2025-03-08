@@ -24,7 +24,6 @@ resource "azurerm_key_vault" "kv" {
   tenant_id           = var.tenant_id
   sku_name            = "standard"
 
-  #   soft_delete_enabled         = true
   purge_protection_enabled = false
 
   # Access policy for the function app
@@ -36,8 +35,8 @@ resource "azurerm_key_vault" "kv" {
     object_id = var.client_id
 
     secret_permissions = [
-      "get",
-      "list"
+      "Get",
+      "List"
     ]
   }
 }
