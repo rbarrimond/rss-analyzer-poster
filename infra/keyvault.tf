@@ -32,7 +32,7 @@ resource "azurerm_key_vault" "kv" {
   # tenant and object IDs, ensuring secure and managed access.
   access_policy {
     tenant_id = var.tenant_id
-    object_id = var.client_id
+    object_id = var.object_id  # Updated to use object_id
 
     secret_permissions = [
       "Get",
