@@ -60,7 +60,6 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"              = "python"
-    "PYTHON_VERSION"                        = "3.11"  # Set the desired Python version
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.id})"
     "AZURE_STORAGEACCOUNT_BLOBENDPOINT"     = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT"    = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
