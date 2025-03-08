@@ -21,13 +21,7 @@ variable "tenant_id" {
   type        = string
 }
 
-variable "client_id" {
-  description = "The client ID of the application or service principal used for authentication"
+variable "admin_object_id" {
+  description = "The Microsoft Entra object ID for the admin account"
   type        = string
 }
-
-variable "object_id" {
-  description = "The Microsoft Entra object ID for the application or service principal"
-  type        = string
-}
-

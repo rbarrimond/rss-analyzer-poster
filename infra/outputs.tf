@@ -5,11 +5,6 @@
 # that can be used for reference in other configurations or scripts.
 # ===================================================================
 
-# # Output for the RSS Feed Downloader Function App ID
-# output "function_app_rssfeeddownloader_id" {
-#   value = azurerm_linux_function_app.func_rssfeeddownloader.id
-# }
-
 # Output for the Storage Account Blob Endpoint
 output "storage_account_blob_endpoint" {
   value = azurerm_storage_account.strg_storageaccount.primary_blob_endpoint
@@ -22,47 +17,36 @@ output "storage_account_table_endpoint" {
 
 # Output for the Storage Account Queue Endpoint
 output "storage_account_queue_endpoint" {
-  value = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
+  description = "The primary queue endpoint for the storage account."
+  value       = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
 }
 
 # Output for the Storage Account File Endpoint
 output "storage_account_file_endpoint" {
-  value = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
+  description = "The primary file endpoint for the storage account."
+  value       = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
 }
 
-# Output for the Storage Account URL
-output "storage_account_url" {
-  value = "https://${azurerm_storage_account.strg_storageaccount.name}.blob.core.windows.net"
+# Output for the RSS Analyzer Poster Function App Name
+output "function_app_rss_analyzer_poster_name" {
+  description = "The name of the RSS Analyzer Poster Function App."
+  value       = azurerm_linux_function_app.rss_analyzer_poster.name
 }
 
-# Output for the Cosmos DB Name
-output "cosmos_db_name" {
-  value = "mongo${var.resource_suffix}"
+# Output for the Function App Principal ID
+output "function_app_principal_id" {
+  description = "The principal ID of the RSS Analyzer Poster Function App's managed identity."
+  value       = jsondecode(data.azapi_resource.function_app_identity.output).identity.principalId
 }
 
-# Output for the Cosmos DB Container Name
-output "cosmos_db_container" {
-  value = "rss_feeds"
+# Output for the RSS Analyzer Poster Function App Default Hostname
+output "function_app_rss_analyzer_poster_default_hostname" {
+  description = "The default hostname for the RSS Analyzer Poster Function App."
+  value       = azurerm_linux_function_app.rss_analyzer_poster.default_hostname
 }
 
-# Output for the Application Insights Connection String
-output "applicationinsights_connection_string" {
-  value     = azurerm_application_insights.app_insights.connection_string
-  sensitive = true
+# Output for the RSS Analyzer Poster Function App URL
+output "function_app_rss_analyzer_poster_url" {
+  description = "The URL for accessing the RSS Analyzer Poster Function App."
+  value       = "https://${azurerm_linux_function_app.rss_analyzer_poster.default_hostname}"
 }
-
-# Output for the RSS Analyzer Poster Function App ID
-output "function_app_rss_analyzer_poster_id" {
-  value = azurerm_linux_function_app.rss_analyzer_poster.id
-}
-
-# Output for the Storage Account ID (General Storage)
-output "storage_account_storageaccount_id" {
-  value = azurerm_storage_account.strg_storageaccount.id
-}
-
-# Output for the Storage Account ID (Function Deployment)
-output "storage_account_funcdep_id" {
-  value = azurerm_storage_account.strg_funcdep.id
-}
-

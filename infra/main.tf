@@ -66,6 +66,11 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
   identity {
     type = "SystemAssigned"
   }
+
+  # Explicitly define dependencies
+  depends_on = [
+    azurerm_service_plan.funcplanlinux
+  ]
 }
 
 # ✅ Use azapi_resource to manually set the runtime version
