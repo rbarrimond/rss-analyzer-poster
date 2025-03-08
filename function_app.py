@@ -75,9 +75,9 @@ credential = DefaultAzureCredential()
 secret_client = SecretClient(vault_url=KEY_VAULT_URL, credential=credential)
 
 # Retrieve secrets from Key Vault and set them as environment variables
-os.environ["CLIENT_ID"] = secret_client.get_secret("CLIENT_ID").value
-os.environ["CLIENT_SECRET"] = secret_client.get_secret("CLIENT_SECRET").value
-os.environ["TENANT_ID"] = secret_client.get_secret("TENANT_ID").value
+os.environ["CLIENT_ID"] = secret_client.get_secret("RSSAP_CLIENT_ID").value
+os.environ["CLIENT_SECRET"] = secret_client.get_secret("RSSAP_CLIENT_SECRET").value
+os.environ["TENANT_ID"] = secret_client.get_secret("RSSAP_TENANT_ID").value
 
 # Initialize BlobServiceClient for Azure Blob Storage operations
 blob_service_client = BlobServiceClient(
