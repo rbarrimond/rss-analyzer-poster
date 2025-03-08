@@ -1,56 +1,31 @@
-# Understand the generated Terraform files
+# RSS Analyzer Poster Infrastructure
 
-#### In this article
+This repository contains Terraform Infrastructure as Code (IaC) for deploying and managing the infrastructure required for the RSS Analyzer Poster project on Azure.
 
-- [Generated file list](#generated-file-list)
-- [Next steps](#next-steps)
-- [Details about the generated files](#details-about-the-generated-files)
+## Contents
 
-CodeToCloud generates Terraform code to create the Azure resources according to your infrastructure requirements and manages the connection between created Azure services. The generator takes care of app settings, authentication settings (identity enabling and role assignments), and public network settings to make your service work once deployed.
+- **keyvault.tf**: Configures an Azure Key Vault to securely store secrets and keys. It includes access policies for the function app to retrieve and list secrets.
+- **outputs.tf**: Defines outputs for various Azure resources, such as storage account endpoints, Cosmos DB endpoints, and function app IDs, which can be referenced in other configurations or scripts.
+- **main.tf**: Sets up the Azure client configuration, resource group, Application Insights for monitoring, and a Linux-based Azure Function App for the RSS Analyzer Poster project.
+- **appserviceplan.tf**: Configures an Azure App Service Plan with a Basic (B1) SKU for hosting the Azure Function Apps.
+- **providers.tf**: Specifies the required providers (azurerm and azapi) and configures the Azure provider with the subscription ID.
+- **storageaccount.tf**: Defines configurations for Azure Storage Accounts, including a general-purpose storage account, a blob container for function app configurations, and a dedicated storage account for function app deployment artifacts.
+- **variables.tf**: Declares variables for subscription ID, resource suffix, location, tenant ID, and client ID.
 
-## Generated file list
+## Purpose
 
-- `main.tf`. Main entry file, see [details](#maintf).
-- `variables.tf` and `main.tfvars.json`. Input parameters files, see [details](#variablestf).
-- Other Terraform files. See [details](terraform-files-for-resources)
-  - `cosmosdb.tf`
-  - `role.tf`
-  - `storageaccount.tf`
-  - `storageaccount.firewall.tf`
+The Terraform configuration in this repository automates the provisioning and management of Azure resources needed for the RSS Analyzer Poster project. It ensures consistency and efficiency in deploying the infrastructure.
 
-## Next steps
+## Results
 
-1. Fill in the input parameters.
-2. You could make changes to the recommended infrastructure by [Github Copilot for Azure](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azure-github-copilot). Try the following prompts in the chat window:
+Running this Terraform configuration will provision the following Azure resources:
 
-- @azure Replace container app with app service in the infrastructure.
-- @azure Add an environment variable KEY=val to my project.
-- @azure Update the environment variable KEY to \"val\" in the recommendation.
+- A resource group to organize all related resources.
+- An Azure Key Vault for secure storage of secrets and keys.
+- Application Insights for monitoring and logging.
+- An Azure App Service Plan for hosting function apps.
+- A Linux-based Azure Function App for the project.
+- Storage accounts for general-purpose use and function deployment.
+- Configured blob containers for storing configuration files.
 
-3. Provision the resources. You can refer to [Terraform Tutorials](https://developer.hashicorp.com/terraform/tutorials/cli).
-
-## Details about the generated files
-
-Iac Generator for Terraform generates `main.tf` to create the compute resources, `variables.tf` to take user input, and other Terraform files with the resource type name to create each resource.
-
-### `main.tf`
-
-This file first creates a new resource group. Compute resources such as Linux App Service, Container Apps, and Azure Functions are also created in `main.tf`. The dependency resources such as App Service Plan and Container Apps Environment are created in separate files. One kind of compute resource shares a single dependency resource. App settings and environment variables are configured based on each target resource. Implicit dependencies are used to get the necessary keys, connection strings, and principal IDs of system identity from the Terraform files of the resources.
-
-### Terraform files for resources
-
-For each kind of resource except the compute resources, a Terraform file with the name of the resource type creates all the instances of the service. Required parameters for resource creation are configured with some default values.
-
-- `cosmosdb.tf` creates the instances of the Cosmos DB for Mongo with a Mongo database.
-
-- `role.tf` creates the role assignments to grant necessary access to system identity of compute resources if identity-based connection is used.
-
-- `storageaccount.tf` creates the instances of Storage Account.
-- `storageaccount.firewall.tf` creates the instances of network rules, which add the outbound IPs of connected compute resources to the firewall rule set.
-
-### `variables.tf` and `main.tfvars.json`
-
-`variables.tf` contains the parameters that you can configure in `main.tfvars.json`. Replace the '<...>' placeholder with your values according to the hints provided by the variable names.
-
-- Modify the suffix of resource group name by changing 'resource_suffix'.
-- Customize the location.
+This setup provides a scalable and secure environment for the RSS Analyzer Poster project, enabling efficient deployment and management of resources on Azure.
