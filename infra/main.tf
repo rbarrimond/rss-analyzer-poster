@@ -60,9 +60,6 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT"    = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
     "AZURE_STORAGEACCOUNT_QUEUEENDPOINT"    = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
     "AZURE_STORAGEACCOUNT_FILEENDPOINT"     = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
-    "AZURE_COSMOS_DB_ENDPOINT"              = azurerm_cosmosdb_account.cosmos_cosmosdb.endpoint
-    "AZURE_COSMOS_DB_NAME"                  = azurerm_cosmosdb_mongo_database.cosmos_cosmosdbmongo.name
-    "AZURE_COSMOS_DB_CONTAINER"             = "rss_feeds"
     "WEBSITE_RUN_FROM_PACKAGE"              = "1"  # Enable running from package
   }
 
