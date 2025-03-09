@@ -31,12 +31,6 @@ resource "azurerm_application_insights" "app_insights" {
   application_type    = "web"
 }
 
-resource "azurerm_key_vault_secret" "app_insights_connection_string" {
-  name         = "AppInsightsConnectionString"
-  value        = azurerm_application_insights.app_insights.connection_string
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
 # ===================================================================
 # Azure Linux Function App: RSS Analyzer Poster
 # Deploys a Linux-based Azure Function App for the RSS Analyzer
@@ -75,13 +69,6 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
   tags = {
     azd-env-name = var.resource_suffix
   }
-
-  # Explicitly define dependencies
-  depends_on = [
-    azurerm_service_plan.funcplanlinux,
-    azurerm_key_vault.kv,  # Ensure the Key Vault is created before the Function App
-    azurerm_key_vault_secret.app_insights_connection_string  # Ensure the secret is created before the Function App
-  ]
 }
 
 # Resource to manually set the runtime version for the Function App
@@ -103,59 +90,4 @@ resource "azapi_resource" "fix_linux_fx_version" {
   depends_on = [
     azurerm_linux_function_app.rss_analyzer_poster
   ]
-}
-
-# Data source to retrieve the identity of the Function App
-data "azapi_resource" "function_app_identity" {
-  type      = "Microsoft.Web/sites@2022-09-01"
-  name      = azurerm_linux_function_app.rss_analyzer_poster.name
-  parent_id = azurerm_resource_group.rg.id
-
-  response_export_values = ["identity"]
-
-  # Ensure this resource is applied after the Function App is created
-  depends_on = [
-    azurerm_linux_function_app.rss_analyzer_poster
-  ]
-}
-
-# Key Vault access policy for the Function App
-resource "azurerm_key_vault_access_policy" "function_app_policy" {
-  key_vault_id = azurerm_key_vault.kv.id
-
-  tenant_id = var.tenant_id
-  object_id = jsondecode(data.azapi_resource.function_app_identity.output).identity.principalId
-
-  secret_permissions = ["Get", "List"]
-}
-
-# Key Vault access policy for the administrator
-resource "azurerm_key_vault_access_policy" "admin_policy" {
-  key_vault_id = azurerm_key_vault.kv.id
-
-  tenant_id = var.tenant_id
-  object_id = var.admin_object_id
-
-  # key_permissions = ["Get", "List", "Set", "Delete", "Purge"]
-  secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Backup", "Restore", "Recover"]
-}
-
-# Store sensitive application credentials in Azure Key Vault
-# This includes Tenant ID, Client ID, and Client Secret for secure access management.
-resource "azurerm_key_vault_secret" "rsapp_tenant_id" {
-  name         = "RssapTenantId"
-  value        = var.tenant_id  
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-resource "azurerm_key_vault_secret" "rssap_client_id" {
-  name         = "RssapClientId"
-  value        = var.rssap_client_id
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-resource "azurerm_key_vault_secret" "rssap_client_secret" {
-  name         = "RssapClientSecret"
-  value        = var.rssap_client_secret
-  key_vault_id = azurerm_key_vault.kv.id
 }

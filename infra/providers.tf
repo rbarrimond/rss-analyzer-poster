@@ -13,6 +13,10 @@ terraform {
       source  = "azure/azapi"
       version = "~>1.0"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = ">=2.0"
+    }
   }
 }
 
@@ -33,5 +37,14 @@ provider "azurerm" {
 # supported by the azurerm provider.
 # ===================================================================
 provider "azapi" {
+  # No additional configuration required
+}
+
+# ===================================================================
+# Azure AD Provider Configuration
+# Configures the Azure AD provider for managing Azure Active Directory
+# resources such as applications, service principals, and groups.
+# ===================================================================
+provider "azuread" {
   # No additional configuration required
 }
