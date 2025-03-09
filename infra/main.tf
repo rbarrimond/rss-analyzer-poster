@@ -94,7 +94,7 @@ resource "azapi_resource" "fix_linux_fx_version" {
   body = jsonencode({
     properties = {
       siteConfig = {
-        linuxFxVersion = "Python|3.11"  # Replace with your required runtime
+        linuxFxVersion = "PYTHON|3.11"  # Ensure the casing is correct
       }
     }
   })
