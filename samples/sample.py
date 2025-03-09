@@ -1,9 +1,10 @@
-import feedparser
 import random
+import time
+
+import feedparser
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import time
 
 # Rationalized Column Headers
 csv_data = {
