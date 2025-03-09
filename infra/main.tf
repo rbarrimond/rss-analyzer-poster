@@ -84,7 +84,7 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
   ]
 }
 
-# Use azapi_resource to manually set the runtime version
+# Resource to manually set the runtime version for the Function App
 resource "azapi_resource" "fix_linux_fx_version" {
   type      = "Microsoft.Web/sites@2022-09-01"  # Ensure correct API version
   name      = azurerm_linux_function_app.rss_analyzer_poster.name
@@ -93,7 +93,7 @@ resource "azapi_resource" "fix_linux_fx_version" {
 
   body = jsonencode({
     properties = {
-      siteConfig = {
+            siteConfig = {
         linuxFxVersion = "PYTHON|3.11"  # Ensure the casing is correct
       }
     }
@@ -104,6 +104,8 @@ resource "azapi_resource" "fix_linux_fx_version" {
     azurerm_linux_function_app.rss_analyzer_poster
   ]
 }
+
+# Data source to retrieve the identity of the Function App
 data "azapi_resource" "function_app_identity" {
   type      = "Microsoft.Web/sites@2022-09-01"
   name      = azurerm_linux_function_app.rss_analyzer_poster.name
@@ -117,6 +119,7 @@ data "azapi_resource" "function_app_identity" {
   ]
 }
 
+# Key Vault access policy for the Function App
 resource "azurerm_key_vault_access_policy" "function_app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
 
@@ -126,6 +129,7 @@ resource "azurerm_key_vault_access_policy" "function_app_policy" {
   secret_permissions = ["Get", "List"]
 }
 
+# Key Vault access policy for the administrator
 resource "azurerm_key_vault_access_policy" "admin_policy" {
   key_vault_id = azurerm_key_vault.kv.id
 
@@ -136,6 +140,8 @@ resource "azurerm_key_vault_access_policy" "admin_policy" {
   secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Backup", "Restore", "Recover"]
 }
 
+# Store sensitive application credentials in Azure Key Vault
+# This includes Tenant ID, Client ID, and Client Secret for secure access management.
 resource "azurerm_key_vault_secret" "rsapp_tenant_id" {
   name         = "RssapTenantId"
   value        = var.tenant_id  
