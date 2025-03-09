@@ -25,3 +25,14 @@ variable "admin_object_id" {
   description = "The Microsoft Entra object ID for the admin account"
   type        = string
 }
+
+variable "rssap_client_id" {
+  description = "The client ID for the Rssap Azure AD application"
+  type        = string
+}
+
+variable "rssap_client_secret" {
+  description = "The client secret for the Rssap Azure AD application"
+  type        = string
+  sensitive   = true
+}

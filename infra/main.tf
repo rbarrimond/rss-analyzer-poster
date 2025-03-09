@@ -110,6 +110,11 @@ data "azapi_resource" "function_app_identity" {
   parent_id = azurerm_resource_group.rg.id
 
   response_export_values = ["identity"]
+
+  # Ensure this resource is applied after the Function App is created
+  depends_on = [
+    azurerm_linux_function_app.rss_analyzer_poster
+  ]
 }
 
 resource "azurerm_key_vault_access_policy" "function_app_policy" {
@@ -118,7 +123,7 @@ resource "azurerm_key_vault_access_policy" "function_app_policy" {
   tenant_id = var.tenant_id
   object_id = jsondecode(data.azapi_resource.function_app_identity.output).identity.principalId
 
-  secret_permissions = ["Get", "List"]  # Correctly capitalized permissions
+  secret_permissions = ["Get", "List"]
 }
 
 resource "azurerm_key_vault_access_policy" "admin_policy" {
@@ -127,6 +132,24 @@ resource "azurerm_key_vault_access_policy" "admin_policy" {
   tenant_id = var.tenant_id
   object_id = var.admin_object_id
 
-  secret_permissions = ["Get", "List", "Set", "Delete", "Purge"]  # Correctly capitalized permissions
+  # key_permissions = ["Get", "List", "Set", "Delete", "Purge"]
+  secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Backup", "Restore", "Recover"]
 }
 
+resource "azurerm_key_vault_secret" "rsapp_tenant_id" {
+  name         = "RssapTenantId"
+  value        = var.tenant_id  
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_secret" "rssap_client_id" {
+  name         = "RssapClientId"
+  value        = var.rssap_client_id
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_secret" "rssap_client_secret" {
+  name         = "RssapClientSecret"
+  value        = var.rssap_client_secret
+  key_vault_id = azurerm_key_vault.kv.id
+}

@@ -34,10 +34,10 @@ output "function_app_rss_analyzer_poster_name" {
 }
 
 # # Output for the Function App Principal ID
-# output "function_app_principal_id" {
-#   description = "The principal ID of the RSS Analyzer Poster Function App's managed identity."
-#   value       = jsondecode(data.azapi_resource.function_app_identity.output).identity.principalId
-# }
+output "function_app_principal_id" {
+  description = "The principal ID of the RSS Analyzer Poster Function App's managed identity."
+  value       = jsondecode(data.azapi_resource.function_app_identity.output).identity.principalId
+}
 
 # Output for the RSS Analyzer Poster Function App Default Hostname
 output "function_app_rss_analyzer_poster_default_hostname" {
