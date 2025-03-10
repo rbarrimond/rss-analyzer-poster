@@ -40,5 +40,13 @@ resource "azuread_application" "rss_feed_analyzer" {
 resource "azuread_application_password" "rss_feed_secret" {
   application_id = azuread_application.rss_feed_analyzer.id # Link to the app registration
   display_name   = "secret${var.resource_suffix}"           # Name for easy identification
-  end_date       = "2025-09-30T00:00:00.000Z"               # Expiration date for security best practices
+  end_date       = timeadd(timestamp(), "8760h")            # Set expiration date to 12 months (8760 hours) from now
+
+  lifecycle {
+    # Ignore changes to end_date to prevent unnecessary secret replacement
+    # caused by minor format differences or manual updates.
+    ignore_changes = [
+      end_date
+    ]
+  }
 }
