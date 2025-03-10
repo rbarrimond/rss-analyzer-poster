@@ -24,21 +24,13 @@ resource "azuread_application" "rss_feed_analyzer" {
   required_resource_access {
     resource_app_id = "00000003-0000-0000-c000-000000000000" # Microsoft Graph API
 
-    # Assign specific API permissions using known GUIDs
     resource_access {
-      id   = "e1fe6dd8-ba31-4d61-89e7-88639da4683d" # User.Read (Delegated)
-      type = "Scope"
-    }
-    resource_access {
-      id   = "de4e4161-a10a-4dfd-809c-e328d89aefeb" # Directory.Read.All (Application)
+      id   = "9492366f-7969-46a4-8d15-ed1a20078fff" # Sites.ReadWrite.All (Application)
       type = "Role"
     }
+
     resource_access {
-      id   = "23c5a9bd-d900-4ecf-be26-a0689755d9e5" # User.ReadWrite.All (Application)
-      type = "Role"
-    }
-    resource_access {
-      id   = "b633e1c5-b582-4048-a93e-9f11b44c7e96" # Reports.Read.All (Application)
+      id   = "b633e1c5-b582-4048-a93e-9f11b44c7e96" # Mail.Send (Application)
       type = "Role"
     }
   }
