@@ -20,7 +20,13 @@ resource "azurerm_storage_account" "strg_storageaccount" {
   location                      = azurerm_resource_group.rg.location
   account_tier                  = "Standard"
   account_replication_type      = "LRS"
-  public_network_access_enabled = true
+
+  # Enable private access settings for the storage account
+  public_network_access_enabled = false
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+  }
 
   tags = { 
     azd-env-name = var.resource_suffix 
@@ -47,7 +53,13 @@ resource "azurerm_storage_account" "strg_funcdep" {
   location                      = azurerm_resource_group.rg.location
   account_tier                  = "Standard"
   account_replication_type      = "LRS"
-  public_network_access_enabled = true
+  
+  # Enable private access settings for the storage account
+  public_network_access_enabled = false
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+  }
 
   tags = { 
     azd-env-name = var.resource_suffix 
