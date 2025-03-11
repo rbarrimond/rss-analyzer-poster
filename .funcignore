@@ -1,0 +1,92 @@
+# Ignore environment files
+.env
+*.env
+
+# Ignore local settings files
+local.settings.json
+
+# Ignore Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+venv-*
+.venv-*/
+
+# Ignore Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore distribution / packaging
+build/
+dist/
+downloads/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ignore logs
+*.log
+
+# Ignore unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore VS Code settings
+.vscode/
+
+# Ignore Azure Functions build artifacts
+bin/
+obj/
+
+# Ignore Azure Functions Core Tools artifacts
+funcpack/
+
+# Ignore Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform/
+.terraform.lock.hcl
+
+# Ignore temporary files
+*.tmp
+
+# Ignore zip files
+*.zip
+
+# Ignore override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore local configuration files
+local.settings.json
+
+# Ignore Azurite data directory
+azurite_data/
+
+# Ignore Azurite JSON files
+__azurite*.json
