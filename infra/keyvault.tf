@@ -25,11 +25,11 @@ resource "azurerm_key_vault" "kv" {
 
   purge_protection_enabled = false
 
-# Enable private access settings for the storage account
+  # Enable private access settings for the storage account
   public_network_access_enabled = false
   network_acls {
-    default_action             = "Deny"
-    bypass                     = ["AzureServices"]
+    default_action = "Deny"
+    bypass         = "AzureServices" # Allow access from Azure services, including the Azure Portal and Azure CLI
   }
 
   tags = {
