@@ -12,7 +12,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
-venv-*
+venv-*/
 .venv-*/
 
 # Ignore Python bytecode and cache
