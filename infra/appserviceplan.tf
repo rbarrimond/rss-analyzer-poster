@@ -26,5 +26,9 @@ resource "azurerm_service_plan" "funcplanlinux" {
 	os_type             = "Linux"
 	sku_name            = "B1"
 	# sku_name			= "Y1" # For when in production
+
+	tags = {
+		azd-env-name = var.resource_suffix
+	}
 }
 

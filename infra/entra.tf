@@ -34,6 +34,8 @@ resource "azuread_application" "rss_feed_analyzer" {
       type = "Role"
     }
   }
+
+  tags = [ var.resource_suffix ] # Tag the application for easy identification
 }
 
 # Create a client secret for the application

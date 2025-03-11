@@ -21,6 +21,10 @@ resource "azurerm_storage_account" "strg_storageaccount" {
   account_tier                  = "Standard"
   account_replication_type      = "LRS"
   public_network_access_enabled = true
+
+  tags = { 
+    azd-env-name = var.resource_suffix 
+  }
 }
 
 # Create a Blob Container for Function App Configurations
@@ -44,5 +48,9 @@ resource "azurerm_storage_account" "strg_funcdep" {
   account_tier                  = "Standard"
   account_replication_type      = "LRS"
   public_network_access_enabled = true
+
+  tags = { 
+    azd-env-name = var.resource_suffix 
+  }
 }
 

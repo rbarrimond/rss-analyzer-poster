@@ -47,9 +47,11 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
 
   site_config {
     always_on = true
+    
     # Health check configuration
     health_check_path                      = "/health" # Endpoint for health checks
     health_check_eviction_time_in_min      = 10        # Time in minutes to evict unhealthy instances
+
     application_insights_connection_string = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.id})"
     application_stack {
       python_version = "3.11"
@@ -61,33 +63,24 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
     "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
     "AZURE_STORAGEACCOUNT_FILEENDPOINT"  = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
-    "WEBSITE_RUN_FROM_PACKAGE"           = "1" # Enable running from package
   }
 
   identity {
     type = "SystemAssigned"
   }
+
+  tags = {
+    azd-env-name = var.resource_suffix
+  }
+
+  lifecycle {
+    ignore_changes = [
+      # Oryx build from VS Code
+      app_settings["WEBSITE_RUN_FROM_PACKAGE"],
+      app_settings["BUILD_FLAGS"],
+      app_settings["ENABLE_ORYX_BUILD"],
+      app_settings["SCM_DO_BUILD_DURING_DEPLOYMENT"],
+      app_settings["XDG_CACHE_HOME"],
+    ]
+  }
 }
-
-# Resource to manually set the runtime version for the Function App
-# resource "azapi_resource" "fix_linux_fx_version" {
-#   type      = "Microsoft.Web/sites@2022-09-01" # Ensure correct API version
-#   name      = azurerm_linux_function_app.rss_analyzer_poster.name
-#   location  = azurerm_linux_function_app.rss_analyzer_poster.location
-#   parent_id = azurerm_resource_group.rg.id
-
-#   body = {
-#     properties = {
-#       siteConfig = {
-#         linuxFxVersion = "PYTHON|3.11" # Ensure the casing is correct
-#       }
-#     }
-#   }
-
-#   # replace_triggers_external_values = ["PYTHON|3.11"]
-
-#   # Ensure this resource is applied after the Function App is created
-#   depends_on = [
-#     azurerm_linux_function_app.rss_analyzer_poster
-#   ]
-# }
