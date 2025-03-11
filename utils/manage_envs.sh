@@ -3,14 +3,14 @@
 # Function to activate the production environment
 activate_production() {
     echo "Activating production environment..."
-    source venv/bin/activate
+    source .venv/bin/activate
     echo "Production environment activated."
 }
 
 # Function to activate the development environment
 activate_development() {
     echo "Activating development environment..."
-    source venv-dev/bin/activate
+    source .venv-dev/bin/activate
     echo "Development environment activated."
 }
 
