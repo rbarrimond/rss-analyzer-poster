@@ -10,5 +10,7 @@ azure-identity
 openai
 # msal is used for authentication with Microsoft Graph API
 msal
-# msgraph-sdk is used to interact with Microsoft Graph API
-msgraph-sdk
+# msgraph-core is used to interact with Microsoft Graph API
+msgraph-core
+# azure-keyvault-secrets is used to interact with Azure Key Vault
+azure-keyvault-secrets
