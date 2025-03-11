@@ -24,18 +24,10 @@
       "type": "azurestorageaccount",
       "instances": [
         {
-          "name": "generalStorageAccount"
+          "name": "storagerssai01"
         },
         {
-          "name": "functionDeploymentStorageAccount"
-        }
-      ]
-    },
-    {
-      "type": "azurecosmosdb",
-      "instances": [
-        {
-          "name": "cosmosDBMongoAPI"
+          "name": "funcdeprssai01"
         }
       ]
     },
@@ -43,7 +35,7 @@
       "type": "azureapplicationinsights",
       "instances": [
         {
-          "name": "appInsights"
+          "name": "appInsightsrssai01"
         }
       ]
     },
@@ -51,33 +43,28 @@
       "type": "azurerm_service_plan",
       "instances": [
         {
-          "name": "appServicePlan"
+          "name": "funcplanlinuxrssai01"
+        }
+      ]
+    },
+    {
+      "type": "azurekeyvault",
+      "instances": [
+        {
+          "name": "kvrssai01"
+        }
+      ]
+    },
+    {
+      "type": "azuread_application",
+      "instances": [
+        {
+          "name": "RSS Feed Analyzer-Poster"
         }
       ]
     }
   ],
-  "bindings": [
-    {
-      "source": "rssAnalyzerPoster",
-      "target": "cosmosDBMongoAPI",
-      "connection": "system-identity"
-    },
-    {
-      "source": "rssAnalyzerPosterHttp",
-      "target": "cosmosDBMongoAPI",
-      "connection": "system-identity"
-    },
-    {
-      "source": "rssSummarizerHttp",
-      "target": "cosmosDBMongoAPI",
-      "connection": "system-identity"
-    },
-    {
-      "source": "rssPosterHttp",
-      "target": "cosmosDBMongoAPI",
-      "connection": "system-identity"
-    }
-  ],
+  "bindings": [],
   "services": {
     "azureFunctions": [
       "rssAnalyzerPoster",
@@ -86,14 +73,13 @@
       "rssPosterHttp"
     ],
     "azureStorageAccount": {
-      "general": "generalStorageAccount",
-      "functionDeployment": "functionDeploymentStorageAccount"
+      "general": "storagerssai01",
+      "functionDeployment": "funcdeprssai01"
     },
-    "azureCosmosDB": {
-      "api": "cosmosDBMongoAPI"
-    },
-    "azureApplicationInsights": "appInsights",
-    "azureAppServicePlan": "appServicePlan"
+    "azureApplicationInsights": "appInsightsrssai01",
+    "azureAppServicePlan": "funcplanlinuxrssai01",
+    "azureKeyVault": "kvrssai01",
+    "azureADApplication": "rssFeedAnalyzerrssai01"
   },
   "settings": [],
   "infrastructure": "terraform"
