@@ -97,7 +97,7 @@ graph_client = GraphClient(credential=token['access_token'])
 
 @app.function_name(name="rssAnalyzerPoster")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
-def rssAnalyzerPoster(myTimer: func.TimerRequest) -> None:
+def rss_analyzer_poster(myTimer: func.TimerRequest) -> None:
     """
     Scheduled Azure Function (runs daily at 6 AM UTC):
     Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
@@ -124,7 +124,7 @@ def rssAnalyzerPoster(myTimer: func.TimerRequest) -> None:
 
 @app.function_name(name="rssAnalyzerPosterHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-def rss_analyzer_poster(req: HttpRequest) -> HttpResponse:
+def rss_analyzer_poster_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
@@ -152,7 +152,7 @@ def rss_analyzer_poster(req: HttpRequest) -> HttpResponse:
 
 @app.function_name(name="rssSummarizerHttp")
 @app.route(route="summarize", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-def rss_summarizer(req: HttpRequest) -> HttpResponse:
+def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Summarizes and updates existing RSS articles stored in Microsoft Lists.
@@ -171,7 +171,7 @@ def rss_summarizer(req: HttpRequest) -> HttpResponse:
 
 @app.function_name(name="rssPosterHttp")
 @app.route(route="collect", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-def rss_poster(req: HttpRequest) -> HttpResponse:
+def rss_poster_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources and stores them in Microsoft Lists.
