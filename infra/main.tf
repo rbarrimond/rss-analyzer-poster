@@ -52,7 +52,7 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     health_check_path                 = "/health" # Endpoint for health checks
     health_check_eviction_time_in_min = 10        # Time in minutes to evict unhealthy instances
 
-    application_insights_connection_string = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.resource_versionless_id})"
+    application_insights_connection_string = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.versionless_id})"
     application_stack {
       python_version = "3.11"
     }
