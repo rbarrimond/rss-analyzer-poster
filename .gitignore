@@ -155,7 +155,6 @@ __pycache__/
 
 # Visual Studio Code settings
 # Ignore Visual Studio Code workspace settings to prevent user-specific configurations from being tracked.
-.vscode/
 
 # Azure Functions local settings
 local.settings.json
@@ -225,7 +224,6 @@ __pycache__/
 
 # VS Code settings
 # Ignore Visual Studio Code workspace settings to prevent user-specific configurations from being tracked.
-.vscode/
 
 # Pytest cache
 # Ignore pytest cache directories to avoid tracking test execution data.
@@ -244,3 +242,4 @@ instance/
 # Django SQLite database
 # Ignore SQLite database files used for local Django development.
 db.sqlite3
+.python_packages
