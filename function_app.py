@@ -26,16 +26,19 @@ Logging:
 - Logging is configured to provide detailed information about the operations performed by each function.
 """
 
-import os
 import logging
+import os
+
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
-from azure.storage.blob import BlobServiceClient
 from azure.identity import DefaultAzureCredential
-from msal import ConfidentialClientApplication
-from msgraph.core import GraphClient
 from azure.keyvault.secrets import SecretClient
-from rss_processor import process_and_store_feeds, analyze_and_update_recent_articles
+from azure.storage.blob import BlobServiceClient
+from msal import ConfidentialClientApplication
+from msgraph import GraphServiceClient as GraphClient
+
+from rss_processor import (analyze_and_update_recent_articles,
+                           process_and_store_feeds)
 
 # Configure logging
 logging.basicConfig(
@@ -71,9 +74,11 @@ USER_BLOB_NAME = os.getenv('USER_BLOB_NAME')                         # Blob for 
 # Azure Key Vault URL for accessing secrets
 KEY_VAULT_URL = os.getenv('KEY_VAULT_URL')
 
+# Initialize the DefaultAzureCredential
+default_credential = DefaultAzureCredential()
+
 # Initialize the SecretClient with DefaultAzureCredential
-credential = DefaultAzureCredential()
-secret_client = SecretClient(vault_url=KEY_VAULT_URL, credential=credential)
+secret_client = SecretClient(vault_url=KEY_VAULT_URL, credential=default_credential)
 
 # Retrieve secrets from Key Vault and set them as environment variables
 os.environ["CLIENT_ID"] = secret_client.get_secret("RssapClientId").value
@@ -83,17 +88,17 @@ os.environ["TENANT_ID"] = secret_client.get_secret("RssapTenantId").value
 # Initialize BlobServiceClient for Azure Blob Storage operations
 blob_service_client = BlobServiceClient(
     account_url=AZURE_STORAGEACCOUNT_BLOBENDPOINT,
-    credential=credential
+    credential=default_credential
 )
 
 # Initialize Microsoft Graph client for accessing Microsoft Lists
 msal_client = ConfidentialClientApplication(
-    os.getenv("CLIENT_ID"),
+    client_id=os.getenv("CLIENT_ID"),
     authority=f"https://login.microsoftonline.com/{os.getenv('TENANT_ID')}",
     client_credential=os.getenv("CLIENT_SECRET")
 )
 token = msal_client.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
-graph_client = GraphClient(credential=token['access_token'])
+graph_client = GraphClient(credentials=token['access_token'])
 
 @app.function_name(name="rssAnalyzerPoster")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
