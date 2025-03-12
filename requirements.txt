@@ -1,16 +1,16 @@
-# feedparser is used to parse RSS feeds
+# Library for parsing RSS feeds
 feedparser
-# azure-functions is used for Azure Functions
+# Libraries for Azure Functions
 azure-functions
-# azure-storage-blob is used to interact with Azure Blob Storage
+azure-functions-worker
+# Library for Azure Blob Storage interaction
 azure-storage-blob
-# azure-identity handles authentication with Azure
+# Library for Azure authentication
 azure-identity
-# openai is used for calling the OpenAI API directly
+# Library for OpenAI API interaction
 openai
-# msal is used for authentication with Microsoft Graph API
+# Libraries for Microsoft Graph API authentication and interaction
 msal
-# msgraph-core is used to interact with Microsoft Graph API
 msgraph-core
-# azure-keyvault-secrets is used to interact with Azure Key Vault
+# Library for Azure Key Vault interaction
 azure-keyvault-secrets
