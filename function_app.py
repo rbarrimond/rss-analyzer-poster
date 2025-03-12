@@ -35,7 +35,7 @@ from azure.identity import DefaultAzureCredential
 from azure.keyvault.secrets import SecretClient
 from azure.storage.blob import BlobServiceClient
 from msal import ConfidentialClientApplication
-from msgraph import GraphServiceClient as GraphClient
+from msgraph import GraphServiceClient
 
 from rss_processor import (analyze_and_update_recent_articles,
                            process_and_store_feeds)
@@ -98,7 +98,7 @@ msal_client = ConfidentialClientApplication(
     client_credential=os.getenv("CLIENT_SECRET")
 )
 token = msal_client.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
-graph_client = GraphClient(credentials=token['access_token'])
+graph_client = GraphServiceClient(credentials=token["access_token"])
 
 @app.function_name(name="rssAnalyzerPoster")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
