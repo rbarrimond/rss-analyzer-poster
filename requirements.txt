@@ -2,7 +2,6 @@
 feedparser
 # Libraries for Azure Functions
 azure-functions
-azure-functions-worker
 # Library for Azure Blob Storage interaction
 azure-storage-blob
 # Library for Azure authentication
