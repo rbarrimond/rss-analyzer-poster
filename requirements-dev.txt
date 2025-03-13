@@ -1,4 +1,9 @@
+# Development requirements for VS Code
+
+# Include production requirements
 -r requirements.txt
+
+# Data Wrangler requirements
 pandas
 numpy
 jupyter
