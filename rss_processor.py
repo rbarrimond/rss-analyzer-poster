@@ -1,3 +1,27 @@
+# rss_processor.py
+#
+# This module defines functions for processing and analyzing RSS feeds.
+#
+# Key Functions:
+# 1. download_blob_content - Downloads the content of a blob from Azure Blob Storage and returns it as a string.
+# 2. process_and_store_feeds - Processes RSS feeds from a configuration file stored in Azure Blob Storage 
+#    and stores the entries in Microsoft Lists.
+# 3. analyze_and_update_recent_articles - Analyzes recent articles from Microsoft Lists, summarizes them 
+#    using Azure OpenAI, and updates the list with the summaries and engagement scores.
+#
+# Dependencies:
+# - Uses Azure Blob Storage for storing configuration files and role content.
+# - Integrates with Microsoft Graph API to interact with Microsoft Lists.
+# - Utilizes Azure OpenAI for generating summaries and engagement scores.
+# - Uses feedparser for parsing RSS feeds.
+#
+# Environment Variables:
+# - Various environment variables are used for configuration, including Azure Blob Storage endpoints, 
+#   SharePoint site and list IDs, and Azure Key Vault URL for secrets.
+#
+# Logging:
+# - Logging is configured to provide detailed information about the operations performed by each function.
+
 import json
 import logging
 import os
@@ -13,6 +37,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
 
 def download_blob_content(blob_service_client: BlobServiceClient, container_name: str, blob_name: str) -> str:
     """
@@ -44,12 +69,11 @@ def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str
     client = get_graph_client()
 
     # Load feed URLs from configuration file
-    feeds_json = download_blob_content(
-        blob_service_client, config_container_name, config_blob_name)
+    feeds_json = download_blob_content(blob_service_client, config_container_name, config_blob_name)
     config = json.loads(feeds_json)
 
     items_to_insert = []
-    
+
     # Parse and store articles
     for feed_url in config.get('feeds', []):
         logging.info('Processing feed: %s', feed_url)
@@ -68,8 +92,7 @@ def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str
 
     # Batch insert items into Microsoft Lists
     if items_to_insert:
-        client.post(
-            f'/sites/{site_id}/lists/{list_id}/items', json={"value": items_to_insert})
+        client.post(f'/sites/{site_id}/lists/{list_id}/items', json={"value": items_to_insert})
         logging.info('Added %d articles.', len(items_to_insert))
 
 
@@ -90,10 +113,8 @@ def analyze_and_update_recent_articles(client: GraphServiceClient, site_id: str,
     :param user_blob_name: The name of the blob containing the user role content.
     """
     # Load role content from Azure Blob Storage
-    system_content = download_blob_content(
-        blob_service_client, system_container_name, system_blob_name)
-    user_content_template = download_blob_content(
-        blob_service_client, user_container_name, user_blob_name)
+    system_content = download_blob_content(blob_service_client, system_container_name, system_blob_name)
+    user_content_template = download_blob_content(blob_service_client, user_container_name, user_blob_name)
 
     # Fetch items from Microsoft List with necessary fields only
     try:
@@ -149,6 +170,5 @@ def analyze_and_update_recent_articles(client: GraphServiceClient, site_id: str,
                 "engagement_score": engagement_score
             }
         }
-        update_response = client.patch(
-            f'/sites/{site_id}/lists/{list_id}/items/{item["id"]}', json=update_data)
+        update_response = client.patch(f'/sites/{site_id}/lists/{list_id}/items/{item["id"]}', json=update_data)
         logging.info("Updated article %s with status %s.", item.get("id"), update_response.status_code)
