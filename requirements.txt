@@ -11,5 +11,6 @@ openai
 # Libraries for Microsoft Graph API authentication and interaction
 msal
 msgraph-sdk
+msgraph-core
 # Library for Azure Key Vault interaction
 azure-keyvault-secrets
