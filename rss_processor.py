@@ -48,6 +48,8 @@ def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str
         blob_service_client, config_container_name, config_blob_name)
     config = json.loads(feeds_json)
 
+    items_to_insert = []
+    
     # Parse and store articles
     for feed_url in config.get('feeds', []):
         logging.info('Processing feed: %s', feed_url)
@@ -62,10 +64,13 @@ def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str
                     "Summary": entry.get('summary', '')
                 }
             }
-            # Insert item into Microsoft Lists
-            client.post(
-                f'/sites/{site_id}/lists/{list_id}/items', json=item_data)
-            logging.info('Added article: %s', entry.get('title', 'No Title'))
+            items_to_insert.append(item_data)
+
+    # Batch insert items into Microsoft Lists
+    if items_to_insert:
+        client.post(
+            f'/sites/{site_id}/lists/{list_id}/items', json={"value": items_to_insert})
+        logging.info('Added %d articles.', len(items_to_insert))
 
 
 def analyze_and_update_recent_articles(client: GraphServiceClient, site_id: str, list_id: str,
@@ -90,37 +95,49 @@ def analyze_and_update_recent_articles(client: GraphServiceClient, site_id: str,
     user_content_template = download_blob_content(
         blob_service_client, user_container_name, user_blob_name)
 
-    # Fetch items from Microsoft List
-    response = client.get(f'/sites/{site_id}/lists/{list_id}/items')
-    items = response.json().get('value', [])
+    # Fetch items from Microsoft List with necessary fields only
+    try:
+        response = client.get(f'/sites/{site_id}/lists/{list_id}/items?$select=id,fields')
+        items = response.json().get('value', [])
+    except Exception as e:
+        logging.error('Failed to fetch items from Microsoft List: %s', e)
+        return
 
     for item in items:
         content_text = item.get('fields', {}).get('summary', '')
         if not content_text:
+            logging.info('Skipping item with ID %s due to empty content.', item.get("id"))
             continue
 
         # Format the user message with the content text
         user_content = user_content_template.format(content_text=content_text)
 
         # Call Azure OpenAI for chat-based summarization
-        response = openai.ChatCompletion.create(
-            engine=os.getenv('AZURE_OPENAI_DEPLOYMENT'),
-            messages=[
-                {"role": "system", "content": system_content},
-                {"role": "user", "content": user_content}
-            ],
-            temperature=0.7,
-            max_tokens=150
-        )
-
-        # Parse the response
         try:
-            content = response.choices[0].message.content.strip()
-            parsed_response = json.loads(content)
-            summary_text = parsed_response.get("summary", "No summary")
-            engagement_score = parsed_response.get("score", 5)
-            if not isinstance(engagement_score, int):
+            response = openai.ChatCompletion.create(
+                engine=os.getenv('AZURE_OPENAI_DEPLOYMENT'),
+                messages=[
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.7,
+                max_tokens=150
+            )
+
+            if response.choices:
+                content = response.choices[0].message.content.strip()
+                parsed_response = json.loads(content)
+                summary_text = parsed_response.get("summary", "No summary")
+                engagement_score = parsed_response.get("score", 5)
+                if not isinstance(engagement_score, int):
+                    engagement_score = 5
+            else:
+                summary_text = "No summary"
                 engagement_score = 5
+        except openai.error.OpenAIError as e:
+            logging.error('OpenAI API error: %s', e)
+            summary_text = "No summary"
+            engagement_score = 5
         except (json.JSONDecodeError, TypeError):
             summary_text = "No summary"
             engagement_score = 5
@@ -132,7 +149,6 @@ def analyze_and_update_recent_articles(client: GraphServiceClient, site_id: str,
                 "engagement_score": engagement_score
             }
         }
-        client.patch(
+        update_response = client.patch(
             f'/sites/{site_id}/lists/{list_id}/items/{item["id"]}', json=update_data)
-        logging.info(
-            "Azure OpenAI summary/score added to article %s.", item.get("id"))
+        logging.info("Updated article %s with status %s.", item.get("id"), update_response.status_code)
