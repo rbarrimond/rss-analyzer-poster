@@ -14,12 +14,6 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# Global constants initialized by environment variables
-CLIENT_ID = os.getenv('CLIENT_ID')
-CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-TENANT_ID = os.getenv('TENANT_ID')
-
-
 def download_blob_content(blob_service_client: BlobServiceClient, container_name: str, blob_name: str) -> str:
     """
     Downloads the content of a blob from Azure Blob Storage and returns it as a string.

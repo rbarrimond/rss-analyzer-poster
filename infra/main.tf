@@ -63,6 +63,9 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
     "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
     "AZURE_STORAGEACCOUNT_FILEENDPOINT"  = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
+    "RSSAP_CLIENT_ID"                    = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_id.versionless_id})"
+    "RSSAP_CLIENT_SECRET"                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_secret.versionless_id})"
+    "RSSAP_TENANT_ID"                    = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_tenant_id.versionless_id})"
   }
 
   identity {

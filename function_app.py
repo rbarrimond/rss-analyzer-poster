@@ -32,7 +32,6 @@ import os
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
 from azure.storage.blob import BlobServiceClient
 
 from graph import get_graph_client
@@ -71,24 +70,10 @@ SYSTEM_BLOB_NAME = os.getenv('SYSTEM_BLOB_NAME')                     # Blob for 
 USER_CONTAINER_NAME = os.getenv('USER_CONTAINER_NAME')               # Container for user role content
 USER_BLOB_NAME = os.getenv('USER_BLOB_NAME')                         # Blob for user role content used in OpenAI chat completions
 
-# Azure Key Vault URL for accessing secrets
-KEY_VAULT_URL = os.getenv('KEY_VAULT_URL')
-
-# Initialize the DefaultAzureCredential
-default_credential = DefaultAzureCredential()
-
-# Initialize the SecretClient with DefaultAzureCredential
-secret_client = SecretClient(vault_url=KEY_VAULT_URL, credential=default_credential)
-
-# Retrieve secrets from Key Vault and set them as environment variables
-os.environ["CLIENT_ID"] = secret_client.get_secret("RssapClientId").value
-os.environ["CLIENT_SECRET"] = secret_client.get_secret("RssapClientSecret").value
-os.environ["TENANT_ID"] = secret_client.get_secret("RssapTenantId").value
-
 # Initialize BlobServiceClient for Azure Blob Storage operations
 blob_service_client = BlobServiceClient(
     account_url=AZURE_STORAGEACCOUNT_BLOBENDPOINT,
-    credential=default_credential
+    credential=DefaultAzureCredential()
 )
 
 # Initialize Microsoft Graph client for accessing Microsoft Lists

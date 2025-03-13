@@ -4,9 +4,9 @@ from azure.identity import ClientSecretCredential
 from msgraph import GraphServiceClient
 
 # Load credentials from environment variables or configuration
-TENANT_ID = os.getenv("TENANT_ID", "AZURE_TENANT_ID")
-CLIENT_ID = os.getenv("CLIENT_ID", "AZURE_CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET", "AZURE_CLIENT_SECRET")
+TENANT_ID = os.getenv("RSSAP_TENANT_ID", "AZURE_TENANT_ID")
+CLIENT_ID = os.getenv("RSSAP_CLIENT_ID", "AZURE_CLIENT_ID")
+CLIENT_SECRET = os.getenv("RSSAP_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
 
 def get_graph_client() -> GraphServiceClient:
     """ Returns an authenticated Microsoft Graph client using Client Credentials """
