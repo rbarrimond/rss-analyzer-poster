@@ -136,6 +136,7 @@ crash.log
 
 # Azure Functions local settings
 local.settings.json
+__blobstorage__/
 
 # Azure Functions build artifacts
 bin/
