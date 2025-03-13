@@ -1,9 +1,9 @@
-# Development requirements for VS Code
+# Development requirements for the RSS Analyzer Poster project
 
-# Include production requirements
+# Include production requirements from requirements.txt
 -r requirements.txt
 
-# Data Wrangler requirements
+# Additional packages for data analysis and visualization
 pandas
 numpy
 jupyter
