@@ -1,13 +1,11 @@
 import json
 import logging
 import os
-from typing import List
-from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
-from msal import ConfidentialClientApplication
-from msgraph.core import GraphClient
+from msgraph import GraphServiceClient
 import openai
 import feedparser
+from graph import get_graph_client
 
 # Configure logging
 logging.basicConfig(
@@ -37,7 +35,7 @@ def download_blob_content(blob_service_client: BlobServiceClient, container_name
     return blob_data.decode('utf-8').strip()
 
 
-def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str, list_id: str, 
+def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str, list_id: str,
                             config_container_name: str, config_blob_name: str) -> None:
     """
     Processes RSS feeds from a configuration file stored in Azure Blob Storage and stores the entries 
@@ -49,15 +47,7 @@ def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str
     :param config_container_name: The name of the container where the configuration blob is stored.
     :param config_blob_name: The name of the configuration blob containing RSS feed URLs.
     """
-    # Initialize Microsoft Graph client
-    app = ConfidentialClientApplication(
-        CLIENT_ID,
-        authority=f"https://login.microsoftonline.com/{TENANT_ID}",
-        client_credential=CLIENT_SECRET
-    )
-    token = app.acquire_token_for_client(
-        scopes=["https://graph.microsoft.com/.default"])
-    client = GraphClient(credential=token['access_token'])
+    client = get_graph_client()
 
     # Load feed URLs from configuration file
     feeds_json = download_blob_content(
@@ -84,8 +74,8 @@ def process_and_store_feeds(blob_service_client: BlobServiceClient, site_id: str
             logging.info('Added article: %s', entry.get('title', 'No Title'))
 
 
-def analyze_and_update_recent_articles(client: GraphClient, site_id: str, list_id: str, 
-                                       blob_service_client: BlobServiceClient, system_container_name: str, 
+def analyze_and_update_recent_articles(client: GraphServiceClient, site_id: str, list_id: str,
+                                       blob_service_client: BlobServiceClient, system_container_name: str,
                                        system_blob_name: str, user_container_name: str, user_blob_name: str) -> None:
     """
     Analyzes recent articles from Microsoft Lists, summarizes them using Azure OpenAI, and updates the list 
