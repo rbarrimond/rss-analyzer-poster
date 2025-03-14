@@ -27,16 +27,17 @@ Logging:
 import json
 import logging
 import os
+from typing import Optional
 
 import feedparser
 import openai
-from openai import AzureOpenAI
+from azure.core.exceptions import ClientAuthenticationError, HttpResponseError, ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph import GraphServiceClient
 from msgraph.generated.models.field_value_set import FieldValueSet
-from msgraph.generated.sites.item.lists.item.items.items_request_builder import \
-    ItemsRequestBuilder
+from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
+from openai import AzureOpenAI
 
 # Configure logging
 logging.basicConfig(
@@ -50,20 +51,31 @@ AZURE_OPENAI_MODEL_NAME = os.environ.get('AZURE_OPENAI_MODEL_NAME')
 client = AzureOpenAI(azure_endpoint="https://rlb-gpt-1.openai.azure.com/openai/deployments/rlb-gpt-4o-100k/chat/completions?api-version=2025-01-01-preview",
     # credential=AzureKeyCredential("<API_KEY>")
 )
-def download_blob_content(blob_service_client: BlobServiceClient, container_name: str, blob_name: str) -> str:
+
+def download_blob_content(blob_service_client: BlobServiceClient, container_name: str, blob_name: str) -> Optional[str]:
     """
     Downloads the content of a blob from Azure Blob Storage and returns it as a string.
 
     :param blob_service_client: The BlobServiceClient instance to interact with Azure Blob Storage.
     :param container_name: The name of the container where the blob is stored.
     :param blob_name: The name of the blob to download.
-    :return: The content of the blob as a string.
+    :return: The content of the blob as a string, or None if an error occurs.
     """
-    container_client = blob_service_client.get_container_client(container_name)
-    blob_client = container_client.get_blob_client(blob_name)
-    blob_data = blob_client.download_blob().readall()
-    content = blob_data.decode('utf-8').strip()
-    return content
+    try:
+        container_client = blob_service_client.get_container_client(container_name)
+        blob_client = container_client.get_blob_client(blob_name)
+        blob_data = blob_client.download_blob().readall()
+        content = blob_data.decode('utf-8').strip()
+        return content
+    except ResourceNotFoundError:
+        logging.error("Blob not found: container=%s, blob=%s", container_name, blob_name)
+    except ClientAuthenticationError:
+        logging.error("Authentication error while accessing blob: container=%s, blob=%s", container_name, blob_name)
+    except HttpResponseError as e:
+        logging.error("HTTP response error while accessing blob: container=%s, blob=%s, error=%s", container_name, blob_name, e)
+    except Exception as e:
+        logging.error("Failed to download blob content: %s", e)
+    return None
 
 def process_and_store_feeds(blob_service_client: BlobServiceClient, graph_service_client: GraphServiceClient,
                             site_id: str, list_id: str, config_container_name: str, config_blob_name: str) -> None:
@@ -79,10 +91,12 @@ def process_and_store_feeds(blob_service_client: BlobServiceClient, graph_servic
     """
 
     # Load feed URLs from configuration file
-    feeds_json = download_blob_content(
-        blob_service_client, config_container_name, config_blob_name)
-    config = json.loads(feeds_json)
+    feeds_json = download_blob_content(blob_service_client, config_container_name, config_blob_name)
+    if feeds_json is None:
+        logging.error("Failed to load feed URLs from configuration file.")
+        return
 
+    config = json.loads(feeds_json)
     items_to_insert = []
 
     # Parse and store articles
@@ -136,15 +150,21 @@ def analyze_and_update_recent_articles(graph_service_client: GraphServiceClient,
     """
     # Load role content from Azure Blob Storage
     system_content = download_blob_content(blob_service_client, system_container_name, system_blob_name)
+    if system_content is None:
+        logging.error("Failed to load system role content.")
+        return
+
     user_content_template = download_blob_content(blob_service_client, user_container_name, user_blob_name)
+    if user_content_template is None:
+        logging.error("Failed to load user role content.")
+        return
 
     # Fetch items from Microsoft List with necessary fields only
     try:
         query_params = ItemsRequestBuilder.ItemsRequestBuilderGetQueryParameters(
                             expand=["fields(select=Entry_ID,Summary,Full_Content,Keywords,Categories)"])
         request_configuration = RequestConfiguration(query_parameters=query_params)
-        items =  graph_service_client.sites.by_site_id('site-id').lists.by_list_id('list-id').items.get(request_configuration=request_configuration)
-        
+        items = graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.get(request_configuration=request_configuration)
     except Exception as e:
         logging.error('Failed to fetch items from Microsoft List: %s', e)
         return
@@ -152,8 +172,7 @@ def analyze_and_update_recent_articles(graph_service_client: GraphServiceClient,
     for item in items:
         content_text = item.get('fields', {}).get('summary', '')
         if not content_text:
-            logging.info(
-                'Skipping item with ID %s due to empty content.', item.get("id"))
+            logging.info('Skipping item with ID %s due to empty content.', item.get("id"))
             continue
 
         # Format the user message with the content text
@@ -199,8 +218,7 @@ def analyze_and_update_recent_articles(graph_service_client: GraphServiceClient,
             engagement_score = 5
 
         # Update the item in Microsoft List directly
-        request_body = FieldValueSet(additional_data=
-                                     {"analysis_summary": summary_text, "engagement_score": engagement_score})
+        request_body = FieldValueSet(additional_data={"analysis_summary": summary_text, "engagement_score": engagement_score})
 
         result = graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.by_list_item_id(item["id"]).fields.patch(request_body)
 

@@ -1,10 +1,15 @@
 import logging
 import os
-from typing import Optional
-
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 from msgraph import GraphServiceClient
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 # Load credentials from environment variables or configuration
 TENANT_ID = os.getenv("RSSAP_TENANT_ID", "AZURE_TENANT_ID")
