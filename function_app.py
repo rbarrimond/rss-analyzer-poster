@@ -31,10 +31,8 @@ import os
 
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
-from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient
 
-from graph import get_graph_client
+from azure_clients import get_graph_client, get_blob_service_client
 
 from rss_processor import (analyze_and_update_recent_articles,
                            process_and_store_feeds)
@@ -71,10 +69,7 @@ USER_CONTAINER_NAME = os.getenv('USER_CONTAINER_NAME')               # Container
 USER_BLOB_NAME = os.getenv('USER_BLOB_NAME')                         # Blob for user role content used in OpenAI chat completions
 
 # Initialize BlobServiceClient for Azure Blob Storage operations
-BLOB_SERVICE_CLIENT = BlobServiceClient(
-    account_url=AZURE_STORAGEACCOUNT_BLOBENDPOINT,
-    credential=DefaultAzureCredential()
-)
+BLOB_SERVICE_CLIENT = get_blob_service_client()
 
 # Initialize Microsoft Graph client for accessing Microsoft Lists
 GRAPH_SERVICE_CLIENT = get_graph_client()

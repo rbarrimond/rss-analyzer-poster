@@ -30,6 +30,7 @@ import os
 
 import feedparser
 import openai
+from openai import AzureOpenAI
 from azure.storage.blob import BlobServiceClient
 from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph import GraphServiceClient
@@ -44,11 +45,11 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# Setup OpenAI API
-openai_client = openai.AzureOpenAI(api_key=os.getenv("AZURE_OPENAI_KEY"),
-                                    api_version="2024-02-01",
-                                    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"))
-
+AZURE_OPENAI_ENDPOINT = os.environ.get('AZURE_OPENAI_ENDPOINT')
+AZURE_OPENAI_MODEL_NAME = os.environ.get('AZURE_OPENAI_MODEL_NAME')
+client = AzureOpenAI(azure_endpoint="https://rlb-gpt-1.openai.azure.com/openai/deployments/rlb-gpt-4o-100k/chat/completions?api-version=2025-01-01-preview",
+    # credential=AzureKeyCredential("<API_KEY>")
+)
 def download_blob_content(blob_service_client: BlobServiceClient, container_name: str, blob_name: str) -> str:
     """
     Downloads the content of a blob from Azure Blob Storage and returns it as a string.
@@ -61,8 +62,8 @@ def download_blob_content(blob_service_client: BlobServiceClient, container_name
     container_client = blob_service_client.get_container_client(container_name)
     blob_client = container_client.get_blob_client(blob_name)
     blob_data = blob_client.download_blob().readall()
-    return blob_data.decode('utf-8').strip()
-
+    content = blob_data.decode('utf-8').strip()
+    return content
 
 def process_and_store_feeds(blob_service_client: BlobServiceClient, graph_service_client: GraphServiceClient,
                             site_id: str, list_id: str, config_container_name: str, config_blob_name: str) -> None:
@@ -160,14 +161,23 @@ def analyze_and_update_recent_articles(graph_service_client: GraphServiceClient,
 
         # Call Azure OpenAI for chat-based summarization
         try:
-            response = openai_client.chat.completions.create(
-                model=os.getenv('AZURE_OPENAI_DEPLOYMENT'),
+            response = client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": system_content},
-                    {"role": "user", "content": user_content}
+                    {
+                        "role": "system",
+                        "content": system_content,
+                    },
+                    {
+                        "role": "user",
+                        "content": user_content,
+                    }
                 ],
-                temperature=0.7,
-                max_tokens=150
+                max_tokens=4096,
+                temperature=1.0,
+                top_p=1.0,
+                model="rlb-gpt-4o-100k",
+                api_version="2025-01-01-preview",
+                timeout=60
             )
 
             if response.choices:
