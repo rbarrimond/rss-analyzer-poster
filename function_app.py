@@ -71,13 +71,13 @@ USER_CONTAINER_NAME = os.getenv('USER_CONTAINER_NAME')               # Container
 USER_BLOB_NAME = os.getenv('USER_BLOB_NAME')                         # Blob for user role content used in OpenAI chat completions
 
 # Initialize BlobServiceClient for Azure Blob Storage operations
-blob_service_client = BlobServiceClient(
+BLOB_SERVICE_CLIENT = BlobServiceClient(
     account_url=AZURE_STORAGEACCOUNT_BLOBENDPOINT,
     credential=DefaultAzureCredential()
 )
 
 # Initialize Microsoft Graph client for accessing Microsoft Lists
-graph_client = get_graph_client()
+GRAPH_SERVICE_CLIENT = get_graph_client()
 
 @app.function_name(name="rssAnalyzerPoster")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
@@ -89,22 +89,23 @@ def rss_analyzer_poster(myTimer: func.TimerRequest) -> None:
     """
     logging.info('RSS Analyzer Poster triggered.')
     process_and_store_feeds(
-        blob_service_client,
-        SITE_ID,
-        LIST_ID,
-        CONFIG_CONTAINER_NAME,
-        CONFIG_BLOB_NAME
+        blob_service_client=BLOB_SERVICE_CLIENT,
+        graph_service_client=GRAPH_SERVICE_CLIENT,
+        site_id=SITE_ID,
+        list_id=LIST_ID,
+        config_container_name=CONFIG_CONTAINER_NAME,
+        config_blob_name=CONFIG_BLOB_NAME
     )
-    analyze_and_update_recent_articles(
-        graph_client,
-        SITE_ID,
-        LIST_ID,
-        blob_service_client,
-        SYSTEM_CONTAINER_NAME,
-        SYSTEM_BLOB_NAME,
-        USER_CONTAINER_NAME,
-        USER_BLOB_NAME
-    )
+    # analyze_and_update_recent_articles(
+    #     graph_client,
+    #     SITE_ID,
+    #     LIST_ID,
+    #     blob_service_client,
+    #     SYSTEM_CONTAINER_NAME,
+    #     SYSTEM_BLOB_NAME,
+    #     USER_CONTAINER_NAME,
+    #     USER_BLOB_NAME
+    # )
 
 @app.function_name(name="rssAnalyzerPosterHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
@@ -116,22 +117,25 @@ def rss_analyzer_poster_http(req: HttpRequest) -> HttpResponse:
     """
     logging.info('RSS Analyzer Poster HTTP triggered.')
     process_and_store_feeds(
-        blob_service_client,
+        BLOB_SERVICE_CLIENT,
+        GRAPH_SERVICE_CLIENT,
         SITE_ID,
         LIST_ID,
         CONFIG_CONTAINER_NAME,
         CONFIG_BLOB_NAME
     )
+
     analyze_and_update_recent_articles(
-        graph_client,
+        GRAPH_SERVICE_CLIENT,
         SITE_ID,
         LIST_ID,
-        blob_service_client,
+        BLOB_SERVICE_CLIENT,
         SYSTEM_CONTAINER_NAME,
         SYSTEM_BLOB_NAME,
         USER_CONTAINER_NAME,
         USER_BLOB_NAME
     )
+
     return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
 
 @app.function_name(name="rssSummarizerHttp")
@@ -142,10 +146,10 @@ def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     Summarizes and updates existing RSS articles stored in Microsoft Lists.
     """
     analyze_and_update_recent_articles(
-        graph_client,
+        GRAPH_SERVICE_CLIENT,
         SITE_ID,
         LIST_ID,
-        blob_service_client,
+        BLOB_SERVICE_CLIENT,
         SYSTEM_CONTAINER_NAME,
         SYSTEM_BLOB_NAME,
         USER_CONTAINER_NAME,
@@ -161,10 +165,12 @@ def rss_poster_http(req: HttpRequest) -> HttpResponse:
     Fetches RSS feeds from configured sources and stores them in Microsoft Lists.
     """
     process_and_store_feeds(
-        blob_service_client,
+        BLOB_SERVICE_CLIENT,
+        GRAPH_SERVICE_CLIENT,
         SITE_ID,
         LIST_ID,
         CONFIG_CONTAINER_NAME,
         CONFIG_BLOB_NAME
     )
+
     return func.HttpResponse("RSS feeds collected and stored successfully.", status_code=200)
