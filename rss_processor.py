@@ -38,6 +38,7 @@ from msgraph import GraphServiceClient
 from msgraph.generated.models.field_value_set import FieldValueSet
 from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
 from openai import AzureOpenAI
+from azure_clients import download_blob_content
 
 # Configure logging
 logging.basicConfig(
@@ -51,31 +52,6 @@ AZURE_OPENAI_MODEL_NAME = os.environ.get('AZURE_OPENAI_MODEL_NAME')
 client = AzureOpenAI(azure_endpoint="https://rlb-gpt-1.openai.azure.com/openai/deployments/rlb-gpt-4o-100k/chat/completions?api-version=2025-01-01-preview",
     # credential=AzureKeyCredential("<API_KEY>")
 )
-
-def download_blob_content(blob_service_client: BlobServiceClient, container_name: str, blob_name: str) -> Optional[str]:
-    """
-    Downloads the content of a blob from Azure Blob Storage and returns it as a string.
-
-    :param blob_service_client: The BlobServiceClient instance to interact with Azure Blob Storage.
-    :param container_name: The name of the container where the blob is stored.
-    :param blob_name: The name of the blob to download.
-    :return: The content of the blob as a string, or None if an error occurs.
-    """
-    try:
-        container_client = blob_service_client.get_container_client(container_name)
-        blob_client = container_client.get_blob_client(blob_name)
-        blob_data = blob_client.download_blob().readall()
-        content = blob_data.decode('utf-8').strip()
-        return content
-    except ResourceNotFoundError:
-        logging.error("Blob not found: container=%s, blob=%s", container_name, blob_name)
-    except ClientAuthenticationError:
-        logging.error("Authentication error while accessing blob: container=%s, blob=%s", container_name, blob_name)
-    except HttpResponseError as e:
-        logging.error("HTTP response error while accessing blob: container=%s, blob=%s, error=%s", container_name, blob_name, e)
-    except Exception as e:
-        logging.error("Failed to download blob content: %s", e)
-    return None
 
 def process_and_store_feeds(blob_service_client: BlobServiceClient, graph_service_client: GraphServiceClient,
                             site_id: str, list_id: str, config_container_name: str, config_blob_name: str) -> None:
