@@ -10,6 +10,10 @@
         "isEnabled": true,
         "excludedTypes": "Request"
       }
+    },
+    "logLevel": {
+      "default": "Information",
+      "Function": "Information"
     }
   }
 }
