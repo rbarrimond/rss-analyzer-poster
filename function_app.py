@@ -49,7 +49,6 @@ app = func.FunctionApp()
 # Initialize the AzureClientFactory singleton instance
 acf = AzureClientFactory.get_instance()
 
-
 @app.function_name(name="rssFeedProcessor")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
 def rss_feed_processor(myTimer: func.TimerRequest) -> None:
@@ -97,7 +96,6 @@ def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
 
     return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
 
-
 @app.function_name(name="rssSummarizerHttp")
 @app.route(route="summarize", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
@@ -108,7 +106,6 @@ def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     logging.info('RSS Summarizer HTTP triggered.')
 
     return func.HttpResponse("RSS articles summarized successfully.", status_code=200)
-
 
 @app.function_name(name="rssPosterHttp")
 @app.route(route="collect", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
