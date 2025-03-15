@@ -36,3 +36,29 @@ variable "rssap_client_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "azure_openai_api_key" {
+  description = "The API key for Azure OpenAI"
+  type        = string
+  sensitive   = true
+}
+
+variable "azure_openai_model" {
+  description = "The model name for Azure OpenAI"
+  type        = string
+}
+
+variable "azure_openai_deployment" {
+  description = "The deployment name for Azure OpenAI"
+  type        = string
+}
+
+variable "azure_openai_endpoint" {
+  description = "The endpoint URL for Azure OpenAI"
+  type        = string
+}
+
+variable "openai_api_version" {
+  description = "The API version for Azure OpenAI"
+  type        = string
+}

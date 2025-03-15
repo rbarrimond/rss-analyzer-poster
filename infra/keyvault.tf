@@ -79,3 +79,33 @@ resource "azurerm_key_vault_secret" "rssap_client_secret" {
   value        = azuread_application_password.rss_feed_secret.value
   key_vault_id = azurerm_key_vault.kv.id
 }
+
+resource "azurerm_key_vault_secret" "azure_openai_api_key" {
+  name         = "AzureOpenAIAPIKey"
+  value        = var.azure_openai_api_key
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_secret" "azure_openai_model" {
+  name         = "AzureOpenAIModel"
+  value        = var.azure_openai_model
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_secret" "azure_openai_deployment" {
+  name         = "AzureOpenAIDeployment"
+  value        = var.azure_openai_deployment
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_secret" "azure_openai_endpoint" {
+  name         = "AzureOpenAIEndpoint"
+  value        = var.azure_openai_endpoint
+  key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_key_vault_secret" "openai_api_version" {
+  name         = "OpenAIApiVersion"
+  value        = var.openai_api_version
+  key_vault_id = azurerm_key_vault.kv.id
+}

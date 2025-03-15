@@ -66,6 +66,11 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "RSSAP_CLIENT_ID"                    = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_id.versionless_id})"
     "RSSAP_CLIENT_SECRET"                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_secret.versionless_id})"
     "RSSAP_TENANT_ID"                    = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_tenant_id.versionless_id})"
+    "AZURE_OPENAI_API_KEY"               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_api_key.versionless_id})"
+    "AZURE_OPENAI_MODEL"                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_model.versionless_id})"
+    "AZURE_OPENAI_DEPLOYMENT"            = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_deployment.versionless_id})"
+    "AZURE_OPENAI_ENDPOINT"              = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_endpoint.versionless_id})"
+    "OPENAI_API_VERSION"                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_api_version.versionless_id})"
   }
 
   identity {
