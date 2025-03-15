@@ -32,8 +32,6 @@ import os
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
-from azure_clients import AzureClientFactory
-
 from rss_processor import RssProcessor
 
 # Configure logging
