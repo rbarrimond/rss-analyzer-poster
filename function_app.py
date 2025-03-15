@@ -36,6 +36,7 @@ from rss_processor import RssProcessor
 
 # Configure logging
 logging.basicConfig(
+    force=True,
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
@@ -46,18 +47,18 @@ app = func.FunctionApp()
 
 @app.function_name(name="rssFeedProcessor")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
-def rss_feed_processor(myTimer: func.TimerRequest) -> None:
+async def rss_feed_processor(myTimer: func.TimerRequest) -> None:
     """
     Scheduled Azure Function (runs daily at 6 AM UTC):
     Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
     and analyzes newly stored content with Azure OpenAI, generating summaries and scores.
     """
     logging.info('RSS Feed Processor triggered.')
-    RssProcessor().process_feeds()
+    await RssProcessor().process_feeds()
 
 @app.function_name(name="rssFeedProcessorHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
+async def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
@@ -84,16 +85,16 @@ def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
     user_blob_name = req_body.get(
         'user_blob_name', os.getenv('USER_BLOB_NAME'))
 
-    RssProcessor().process_feeds(site_id, list_id,
-                                config_container_name, config_blob_name,
-                                system_container_name, system_blob_name,
-                                user_container_name, user_blob_name)
+    await RssProcessor().process_feeds(site_id, list_id,
+                                       config_container_name, config_blob_name,
+                                       system_container_name, system_blob_name,
+                                       user_container_name, user_blob_name)
 
     return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
 
 @app.function_name(name="rssSummarizerHttp")
 @app.route(route="summarize", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
+async def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Summarizes and updates existing RSS articles stored in Microsoft Lists.
@@ -104,7 +105,7 @@ def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
 
 @app.function_name(name="rssPosterHttp")
 @app.route(route="collect", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-def rss_poster_http(req: HttpRequest) -> HttpResponse:
+async def rss_poster_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources and stores them in Microsoft Lists.
