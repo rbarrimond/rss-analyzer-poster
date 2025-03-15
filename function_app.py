@@ -46,9 +46,6 @@ logging.basicConfig(
 # Create the Azure Functions application instance
 app = func.FunctionApp()
 
-# Initialize the AzureClientFactory singleton instance
-acf = AzureClientFactory.get_instance()
-
 @app.function_name(name="rssFeedProcessor")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
 def rss_feed_processor(myTimer: func.TimerRequest) -> None:
