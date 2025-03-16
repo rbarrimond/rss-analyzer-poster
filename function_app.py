@@ -28,6 +28,7 @@ Logging:
 
 import logging
 import os
+import asyncio  # Import asyncio
 
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
@@ -45,6 +46,9 @@ logging.basicConfig(
 # Create the Azure Functions application instance
 app = func.FunctionApp()
 
+# Create an asyncio lock object
+lock = asyncio.Lock()
+
 @app.function_name(name="rssFeedProcessor")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
 async def rss_feed_processor(myTimer: func.TimerRequest) -> None:
@@ -52,9 +56,12 @@ async def rss_feed_processor(myTimer: func.TimerRequest) -> None:
     Scheduled Azure Function (runs daily at 6 AM UTC):
     Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
     and analyzes newly stored content with Azure OpenAI, generating summaries and scores.
+
+    :param myTimer: The timer request object that triggers the function.
     """
     logging.info('RSS Feed Processor triggered.')
-    await RssProcessor().process_feeds()
+    async with lock:  # Ensure atomic access
+        await RssProcessor().read_and_store_feeds()
 
 @app.function_name(name="rssFeedProcessorHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
@@ -63,6 +70,9 @@ async def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
     and analyzes each for summaries and scores when invoked externally.
+
+    :param req: The HTTP request object.
+    :return: HTTP response indicating the result of the operation.
     """
     logging.info('RSS Feed Processor HTTP triggered.')
     try:
@@ -85,10 +95,11 @@ async def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
     user_blob_name = req_body.get(
         'user_blob_name', os.getenv('USER_BLOB_NAME'))
 
-    await RssProcessor().process_feeds(site_id, list_id,
-                                       config_container_name, config_blob_name,
-                                       system_container_name, system_blob_name,
-                                       user_container_name, user_blob_name)
+    async with lock:  # Ensure atomic access
+        await RssProcessor().process_feeds(site_id, list_id,
+                                           config_container_name, config_blob_name,
+                                           system_container_name, system_blob_name,
+                                           user_container_name, user_blob_name)
 
     return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
 
@@ -98,8 +109,14 @@ async def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Summarizes and updates existing RSS articles stored in Microsoft Lists.
+
+    :param req: The HTTP request object.
+    :return: HTTP response indicating the result of the operation.
     """
     logging.info('RSS Summarizer HTTP triggered.')
+    async with lock:  # Ensure atomic access
+        # Add the logic to summarize and update existing RSS articles
+        pass
 
     return func.HttpResponse("RSS articles summarized successfully.", status_code=200)
 
@@ -109,7 +126,13 @@ async def rss_poster_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources and stores them in Microsoft Lists.
+
+    :param req: The HTTP request object.
+    :return: HTTP response indicating the result of the operation.
     """
     logging.info('RSS Poster HTTP triggered.')
+    async with lock:  # Ensure atomic access
+        # Add the logic to fetch RSS feeds and store them in Microsoft Lists
+        pass
 
     return func.HttpResponse("RSS feeds collected and stored successfully.", status_code=200)
