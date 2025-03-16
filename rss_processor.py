@@ -100,24 +100,27 @@ class RssProcessor:
                                       Defaults to environment variable if not provided.
         :param config_blob_name: The name of the configuration blob. Defaults to environment variable if not provided.
         """
-        await self.initialize_clients()  # Ensure clients are initialized
+        # Configure this object with the necessary clients and parameters
+        await self.initialize_clients()
         site_id, list_id, config_container_name, config_blob_name = self._get_config_params(
             site_id, list_id, config_container_name, config_blob_name)
-
         if not all([site_id, list_id, config_container_name, config_blob_name]):
             raise ValueError("Missing required parameters for reading and storing feeds.")
 
+        # Download the configuration file containing feed URLs
         feeds_json = await self.acf.download_blob_content(config_container_name, config_blob_name)
         if feeds_json is None:
             logger.error("Failed to load feed URLs from configuration file.")
             return
         config = json.loads(feeds_json)
 
+        # Fetch the status of items already processed from Microsoft List
         items_status = await fetch_processed_status(self.graph_service_client, site_id, list_id)
         if items_status is None:
             logger.warning("No items status fetched from Microsoft List.")
             return
 
+        # Process each feed URL from the configuration
         for feed_url in config.get('feeds', []):
             logger.info('Processing feed: %s', feed_url)
             try:
