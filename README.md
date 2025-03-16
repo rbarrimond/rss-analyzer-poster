@@ -6,7 +6,7 @@ The RSS Analyzer Poster project is designed to analyze RSS feeds, summarize thei
 
 ## Repository Structure
 
-```
+```text
 rss-analyzer-poster/
 ├── .github/
 │   └── workflows/
