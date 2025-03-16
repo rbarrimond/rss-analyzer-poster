@@ -34,7 +34,7 @@ import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
 from rss_processor import RssProcessor
-from utils.logger import configure_logging, update_handler_level, TRACE_LEVEL
+from utils.logger import configure_logging, update_handler_level
 
 # Configure logging
 logger = configure_logging(__name__)
@@ -155,8 +155,7 @@ async def update_log_level(req: HttpRequest) -> HttpResponse:
         'INFO': logging.INFO,
         'WARNING': logging.WARNING,
         'ERROR': logging.ERROR,
-        'CRITICAL': logging.CRITICAL,
-        'TRACE': TRACE_LEVEL
+        'CRITICAL': logging.CRITICAL
     }
 
     if new_level in level_mapping:
