@@ -32,8 +32,8 @@ import openai
 import pandas as pd
 from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph.generated.models.field_value_set import FieldValueSet
-from msgraph.generated.sites.item.lists.item.items_request_builder import ItemsRequestBuilder
-from azure_clients import AzureClientFactory
+from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
+from utils.azure_clients import AzureClientFactory
 from utils.logger import configure_logging
 from utils.rss_lists import fetch_processed_status, create_output_df, post_feed_entries
 
@@ -113,8 +113,9 @@ class RssProcessor:
             return
         config = json.loads(feeds_json)
 
-        items_df = await fetch_processed_status(self.graph_service_client, site_id, list_id)
-        if items_df is None:
+        items_status = await fetch_processed_status(self.graph_service_client, site_id, list_id)
+        if items_status is None:
+            logger.warning("No items status fetched from Microsoft List.")
             return
 
         for feed_url in config.get('feeds', []):
@@ -122,10 +123,9 @@ class RssProcessor:
             try:
                 feed = feedparser.parse(feed_url)
                 if feed.entries:
-                    fp_df = pd.DataFrame(feed.entries)
-                    fp_df.set_index('id', inplace=True)
-                    fp_df = fp_df[~fp_df.index.isin(items_df[items_df['Processed']].index)]
-                    output_df = create_output_df(fp_df)
+                    fp_df = pd.DataFrame(feed.entries).set_index('id', inplace=True)
+                    # Create filtered output DataFrame by excluding already processed entries
+                    output_df = create_output_df(fp_df[~items_status])
                     await post_feed_entries(self.graph_service_client, output_df, site_id, list_id)
             except Exception as e:
                 logger.warning('Failed to process feed %s: %s', feed_url, e)

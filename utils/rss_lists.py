@@ -1,13 +1,34 @@
+"""
+rss_lists.py
+
+This module defines utility functions for interacting with Microsoft Lists and processing RSS feed entries.
+
+Key Functions:
+1. fetch_processed_status - Fetches items from Microsoft List with necessary fields only to filter what has 
+   and hasn't been processed.
+2. create_output_df - Creates an output DataFrame with specific columns from the input DataFrame containing RSS feed entries.
+3. post_feed_entries - Posts feed entries to Microsoft List.
+
+Dependencies:
+- Uses Microsoft Graph API to interact with Microsoft Lists.
+- Uses pandas for DataFrame operations.
+
+Logging:
+- Logging is configured to provide detailed information about the operations performed by each function.
+"""
+
 import pandas as pd
-from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
 from kiota_abstractions.base_request_configuration import RequestConfiguration
-from utils.logger import configure_logging
 from msgraph.generated.models.field_value_set import FieldValueSet
+from msgraph.generated.sites.item.lists.item.items.items_request_builder import \
+    ItemsRequestBuilder
+
+from utils.logger import configure_logging
 
 # Configure logging
 logger = configure_logging(__name__)
 
-async def fetch_processed_status(graph_service_client, site_id: str, list_id: str) -> pd.DataFrame:
+async def fetch_processed_status(graph_service_client, site_id: str, list_id: str) -> pd.Series:
     """
     Fetches items from Microsoft List with necessary fields only to filter what has 
     and hasn't been processed.
@@ -15,7 +36,7 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
     :param graph_service_client: The Microsoft Graph service client.
     :param site_id: The SharePoint site ID.
     :param list_id: The Microsoft List ID.
-    :return: DataFrame containing the processed items.
+    :return: Series containing the processed items.
     """
     try:
         query_params = ItemsRequestBuilder.ItemsRequestBuilderGetQueryParameters(
@@ -23,8 +44,8 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
         request_configuration = RequestConfiguration(query_parameters=query_params)
         items = await graph_service_client.sites[site_id].lists[list_id].items.get(request_configuration=request_configuration)
         items_df = pd.DataFrame([item['fields'] for item in items])
-        items_df.set_index('Entry_ID', inplace=True)
-        return items_df
+        items_status = items_df.set_index('Entry_ID')['Processed']
+        return items_status
     except Exception as e:
         logger.warning('Failed to fetch items from Microsoft List: %s', e)
         return None
