@@ -2,6 +2,7 @@ import pandas as pd
 from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
 from kiota_abstractions.base_request_configuration import RequestConfiguration
 from utils.logger import configure_logging
+from msgraph.generated.models.field_value_set import FieldValueSet
 
 # Configure logging
 logger = configure_logging(__name__)
@@ -52,3 +53,20 @@ def create_output_df(fp_df: pd.DataFrame) -> pd.DataFrame:
     output_df['Engagement_Type'] = ''  # Placeholder for engagement type [Shared, Liked, Commented, None]
     output_df['Response_Received'] = False
     return output_df
+
+async def post_feed_entries(graph_service_client, output_df: pd.DataFrame, site_id: str, list_id: str) -> None:
+    """
+    Posts feed entries to Microsoft List.
+
+    :param graph_service_client: The Microsoft Graph service client.
+    :param output_df: DataFrame containing the feed entries to be posted.
+    :param site_id: The SharePoint site ID.
+    :param list_id: The Microsoft List ID.
+    """
+    for _, row in output_df.iterrows():
+        item_data = FieldValueSet(additional_data=row.to_dict())
+        try:
+            await graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.post(item_data)
+            logger.info('Inserted article with ID %s', row['Entry_ID'])
+        except Exception as e:
+            logger.warning('Failed to insert article with ID %s: %s', row['Entry_ID'], e)

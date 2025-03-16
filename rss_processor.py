@@ -32,10 +32,10 @@ import openai
 import pandas as pd
 from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph.generated.models.field_value_set import FieldValueSet
-from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
+from msgraph.generated.sites.item.lists.item.items_request_builder import ItemsRequestBuilder
 from azure_clients import AzureClientFactory
 from utils.logger import configure_logging
-from utils.rss_lists import fetch_processed_status, create_output_df
+from utils.rss_lists import fetch_processed_status, create_output_df, post_feed_entries
 
 # Configure logging
 logger = configure_logging(__name__)
@@ -118,37 +118,17 @@ class RssProcessor:
             return
 
         for feed_url in config.get('feeds', []):
-            await self._store_new_entries(feed_url, items_df, site_id, list_id)
-
-    async def _store_new_entries(self, feed_url: str, items_df: pd.DataFrame, site_id: str, list_id: str) -> None:
-        """
-        Processes a single feed URL and stores the entries in Microsoft List that are not already processed.
-
-        :param feed_url: The URL of the RSS feed.
-        :param items_df: DataFrame containing the processed items.
-        :param site_id: The SharePoint site ID.
-        :param list_id: The Microsoft List ID.
-        """
-        logger.info('Processing feed: %s', feed_url)
-        try:
-            feed = feedparser.parse(feed_url)
-            if feed.entries:
-                fp_df = pd.DataFrame(feed.entries)
-                fp_df.set_index('id', inplace=True)
-                fp_df = fp_df[~fp_df.index.isin(items_df[items_df['Processed']].index)]
-                output_df = create_output_df(fp_df)
-                await self._post_feed_entries(output_df, site_id, list_id)
-        except Exception as e:
-            logger.warning('Failed to process feed %s: %s', feed_url, e)
-
-    async def _post_feed_entries(self, output_df: pd.DataFrame, site_id: str, list_id: str) -> None:
-        for _, row in output_df.iterrows():
-            item_data = FieldValueSet(additional_data=row.to_dict())
+            logger.info('Processing feed: %s', feed_url)
             try:
-                await self.graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.post(item_data)
-                logger.info('Inserted article with ID %s', row['Entry_ID'])
+                feed = feedparser.parse(feed_url)
+                if feed.entries:
+                    fp_df = pd.DataFrame(feed.entries)
+                    fp_df.set_index('id', inplace=True)
+                    fp_df = fp_df[~fp_df.index.isin(items_df[items_df['Processed']].index)]
+                    output_df = create_output_df(fp_df)
+                    await post_feed_entries(self.graph_service_client, output_df, site_id, list_id)
             except Exception as e:
-                logger.warning('Failed to insert article with ID %s: %s', row['Entry_ID'], e)
+                logger.warning('Failed to process feed %s: %s', feed_url, e)
 
     def _get_config_params(self, site_id: str, list_id: str, config_container_name: str, config_blob_name: str):
         site_id = site_id or os.getenv('SITE_ID')
