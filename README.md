@@ -6,33 +6,35 @@ The RSS Analyzer Poster project is designed to analyze RSS feeds, summarize thei
 
 ## Repository Structure
 
-```text
+```
 rss-analyzer-poster/
 ├── .github/
 │   └── workflows/
 │       └── main_rssanalyzerposterrssai01.yml
-├── .vscode/
-│   ├── extensions.json
-│   └── launch.json
 ├── infra/
-│   ├── main.tf
-│   ├── keyvault.tf
 │   ├── appserviceplan.tf
 │   ├── entra.tf
+│   ├── keyvault.tf
+│   ├── main.tf
+│   ├── outputs.tf
 │   ├── providers.tf
-│   ├── storageaccounts.tf
-│   └── outputs.tf
+│   └── storageaccounts.tf
 ├── samples/
-│   ├── rss_feed_engagement_with_content.csv
-│   └── rss_feed_engagement_sample.csv
-├── function_app.py
-├── rss_processor.py
-├── requirements.txt
-├── requirements-dev.txt
-├── host.json
-├── local.settings.json
+│   ├── rss_feed_engagement_sample.csv
+│   └── rss_feed_engagement_with_content.csv
+├── utils/
+│   ├── manage_envs.sh
+│   ├── helper.py
+│   ├── helper.py
+│   └── parser.py
+├── .funcignore
 ├── .gitignore
-└── README.md
+├── README.md
+├── azure_clients.py
+├── function_app.py
+├── host.json
+├── requirements.txt
+└── rss_processor.py
 ```
 
 ## Key Files and Directories
@@ -40,7 +42,8 @@ rss-analyzer-poster/
 - **function_app.py**: Main entry point for the Azure Function App.
 - **rss_processor.py**: Contains the logic for processing RSS feeds.
 - **infra/**: Contains Terraform configuration files for provisioning Azure resources.
-- **samples/**: Contains sample data and markdown files for testing and documentation.
+- **samples/**: Contains sample data for testing and documentation.
+- **utils/**: Contains utility modules for the application.
 - **.github/workflows/**: Contains GitHub Actions workflows for CI/CD.
 
 ## Sample Data
