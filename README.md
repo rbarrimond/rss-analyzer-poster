@@ -23,8 +23,6 @@ rss-analyzer-poster/
 │   ├── rss_feed_engagement_sample.csv
 │   └── rss_feed_engagement_with_content.csv
 ├── utils/
-│   ├── manage_envs.sh
-│   ├── helper.py
 │   ├── helper.py
 │   └── parser.py
 ├── .funcignore
