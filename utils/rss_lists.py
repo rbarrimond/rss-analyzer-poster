@@ -40,9 +40,10 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
     """
     try:
         query_params = ItemsRequestBuilder.ItemsRequestBuilderGetQueryParameters(
-            expand=["fields(select=Entry_ID,Processed)"])
+            expand=["fields"],
+            select=["id", "fields/Entry_ID", "fields/Processed"])
         request_configuration = RequestConfiguration(query_parameters=query_params)
-        items = await graph_service_client.sites[site_id].lists[list_id].items.get(request_configuration=request_configuration)
+        items = await graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.get(request_configuration=request_configuration)
         items_df = pd.DataFrame([item['fields'] for item in items])
         items_status = items_df.set_index('Entry_ID')['Processed']
         return items_status
