@@ -144,27 +144,23 @@ class AzureClientFactory:
 
     async def download_blob_content(self, container_name: str, blob_name: str) -> Optional[str]:
         """
-        Downloads the content of a blob from Azure Blob Storage and returns it as a string.
+        Downloads the content of a blob from Azure Blob Storage, decodes it to UTF-8,
+        and returns it as a stripped string.
 
         :param container_name: The name of the container where the blob is stored.
         :param blob_name: The name of the blob to download.
-        :return: The content of the blob as a string, or None if an error occurs.
+        :return: The content of the blob as a stripped string, or None if an error occurs.
         """
         if not container_name or not blob_name:
             logging.error("Container name or blob name is missing.")
             return None
 
         try:
-            content = (
-                await self.get_blob_service_client()
-                .get_container_client(container_name)
-                .get_blob_client(blob_name)
-                .download_blob()
-                .readall()
-                .decode('utf-8')
-                .strip()
-            )
-            return content
+            blob_service_client = await self.get_blob_service_client()
+            blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+            blob_content = await blob_client.download_blob()
+            content = await blob_content.readall()
+            return content.decode('utf-8').strip()
         except ResourceNotFoundError:
             logging.error("Blob not found: container=%s, blob=%s", container_name, blob_name)
         except ClientAuthenticationError:
