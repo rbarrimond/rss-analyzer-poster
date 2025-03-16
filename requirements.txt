@@ -14,3 +14,5 @@ msgraph-sdk
 msgraph-core
 # Library for Azure Key Vault interaction
 azure-keyvault-secrets
+# Pandas to read and manipulate data
+pandas
