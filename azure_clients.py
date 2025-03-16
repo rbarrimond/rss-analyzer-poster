@@ -161,9 +161,11 @@ class AzureClientFactory:
         except ResourceNotFoundError:
             logger.error("Blob not found: container=%s, blob=%s", container_name, blob_name)
         except ClientAuthenticationError:
-            logger.error("Authentication error while accessing blob: container=%s, blob=%s", container_name, blob_name)
+            logger.error("Authentication error while accessing blob: container=%s, blob=%s",
+                         container_name, blob_name)
         except HttpResponseError as e:
-            logger.error("HTTP response error while accessing blob: container=%s, blob=%s, error=%s", container_name, blob_name, e)
+            logger.error("HTTP response error while accessing blob: container=%s, blob=%s, error=%s",
+                         container_name, blob_name, e)
         except Exception as e:
             logger.error("Failed to download blob content: %s", e)
         return None

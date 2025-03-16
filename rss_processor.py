@@ -35,6 +35,7 @@ from msgraph.generated.models.field_value_set import FieldValueSet
 from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
 from azure_clients import AzureClientFactory
 from utils.logger import configure_logging
+from utils.rss_lists import fetch_processed_status, create_output_df
 
 # Configure logging
 logger = configure_logging(__name__)
@@ -112,32 +113,12 @@ class RssProcessor:
             return
         config = json.loads(feeds_json)
 
-        items_df = await self._fetch_processed_status(site_id, list_id)
+        items_df = await fetch_processed_status(self.graph_service_client, site_id, list_id)
         if items_df is None:
             return
 
         for feed_url in config.get('feeds', []):
             await self._store_new_entries(feed_url, items_df, site_id, list_id)
-
-    async def _fetch_processed_status(self, site_id: str, list_id: str) -> pd.DataFrame:
-        """
-        Fetches items from Microsoft List with necessary fields only to filter what has been processed.
-
-        :param site_id: The SharePoint site ID.
-        :param list_id: The Microsoft List ID.
-        :return: DataFrame containing the processed items.
-        """
-        try:
-            query_params = ItemsRequestBuilder.ItemsRequestBuilderGetQueryParameters(
-                expand=["fields(select=Entry_ID,Processed)"])
-            request_configuration = RequestConfiguration(query_parameters=query_params)
-            items = await self.graph_service_client.sites[site_id].lists[list_id].items.get(request_configuration=request_configuration)
-            items_df = pd.DataFrame([item['fields'] for item in items])
-            items_df.set_index('Entry_ID', inplace=True)
-            return items_df
-        except Exception as e:
-            logger.error('Failed to fetch items from Microsoft List: %s', e)
-            return None
 
     async def _store_new_entries(self, feed_url: str, items_df: pd.DataFrame, site_id: str, list_id: str) -> None:
         """
@@ -152,32 +133,13 @@ class RssProcessor:
         try:
             feed = feedparser.parse(feed_url)
             if feed.entries:
-                df = pd.DataFrame(feed.entries)
-                df.set_index('id', inplace=True)
-                df = df[~df.index.isin(items_df[items_df['Processed']].index)]
-                output_df = self._create_output_df(df)
+                fp_df = pd.DataFrame(feed.entries)
+                fp_df.set_index('id', inplace=True)
+                fp_df = fp_df[~fp_df.index.isin(items_df[items_df['Processed']].index)]
+                output_df = create_output_df(fp_df)
                 await self._post_feed_entries(output_df, site_id, list_id)
         except Exception as e:
-            logger.error('Failed to process feed %s: %s', feed_url, e)
-
-    def _create_output_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        output_df = pd.DataFrame(index=df.index)
-        output_df['Title'] = df['title'].fillna('No Title')
-        output_df['URL'] = df['link'].fillna('')
-        output_df['Summary'] = df['summary'].fillna('')
-        output_df['Entry_ID'] = df.index
-        output_df['Published_Date'] = df['published'].fillna('')
-        output_df['Full_Content'] = df['content'].apply(lambda x: x[0].get('value', '') if x else '')
-        output_df['Categories'] = df['tags'].apply(lambda x: ', '.join([tag['term'] for tag in x]) if x else '')
-        output_df['Author'] = df['author'].fillna('')
-        output_df['Keywords'] = ''  # Placeholder for keyword extraction (comma-separated)
-        output_df['Sentiment'] = ''  # Placeholder for sentiment analysis [Positive, Negative, Neutral, Mixed]
-        output_df['Readability_Score'] = None  # Placeholder for readability score [0.00-100.00]
-        output_df['Engagement_Score'] = None  # Placeholder for engagement score [0-1000]
-        output_df['Processed'] = False
-        output_df['Engagement_Type'] = ''  # Placeholder for engagement type [Shared, Liked, Commented, None]
-        output_df['Response_Received'] = False
-        return output_df
+            logger.warning('Failed to process feed %s: %s', feed_url, e)
 
     async def _post_feed_entries(self, output_df: pd.DataFrame, site_id: str, list_id: str) -> None:
         for _, row in output_df.iterrows():
@@ -186,7 +148,7 @@ class RssProcessor:
                 await self.graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.post(item_data)
                 logger.info('Inserted article with ID %s', row['Entry_ID'])
             except Exception as e:
-                logger.error('Failed to insert article with ID %s: %s', row['Entry_ID'], e)
+                logger.warning('Failed to insert article with ID %s: %s', row['Entry_ID'], e)
 
     def _get_config_params(self, site_id: str, list_id: str, config_container_name: str, config_blob_name: str):
         site_id = site_id or os.getenv('SITE_ID')
