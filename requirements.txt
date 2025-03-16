@@ -14,5 +14,3 @@ msgraph-sdk
 msgraph-core
 # Library for Azure Key Vault interaction
 azure-keyvault-secrets
-# Library for Azure AI Inference interaction
-azure-ai-inference
