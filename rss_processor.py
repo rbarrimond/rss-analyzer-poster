@@ -25,9 +25,7 @@ Logging:
 """
 
 import json
-import logging
 import os
-from typing import Any
 
 import feedparser
 import openai
@@ -36,13 +34,10 @@ from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph.generated.models.field_value_set import FieldValueSet
 from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
 from azure_clients import AzureClientFactory
+from utils.logger import configure_logging
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+logger = configure_logging(__name__)
 
 class RssProcessor:
     """
@@ -113,7 +108,7 @@ class RssProcessor:
 
         feeds_json = await self.acf.download_blob_content(config_container_name, config_blob_name)
         if feeds_json is None:
-            logging.error("Failed to load feed URLs from configuration file.")
+            logger.error("Failed to load feed URLs from configuration file.")
             return
         config = json.loads(feeds_json)
 
@@ -141,7 +136,7 @@ class RssProcessor:
             items_df.set_index('Entry_ID', inplace=True)
             return items_df
         except Exception as e:
-            logging.error('Failed to fetch items from Microsoft List: %s', e)
+            logger.error('Failed to fetch items from Microsoft List: %s', e)
             return None
 
     async def _store_new_entries(self, feed_url: str, items_df: pd.DataFrame, site_id: str, list_id: str) -> None:
@@ -153,7 +148,7 @@ class RssProcessor:
         :param site_id: The SharePoint site ID.
         :param list_id: The Microsoft List ID.
         """
-        logging.info('Processing feed: %s', feed_url)
+        logger.info('Processing feed: %s', feed_url)
         try:
             feed = feedparser.parse(feed_url)
             if feed.entries:
@@ -163,7 +158,7 @@ class RssProcessor:
                 output_df = self._create_output_df(df)
                 await self._post_feed_entries(output_df, site_id, list_id)
         except Exception as e:
-            logging.error('Failed to process feed %s: %s', feed_url, e)
+            logger.error('Failed to process feed %s: %s', feed_url, e)
 
     def _create_output_df(self, df: pd.DataFrame) -> pd.DataFrame:
         output_df = pd.DataFrame(index=df.index)
@@ -189,9 +184,9 @@ class RssProcessor:
             item_data = FieldValueSet(additional_data=row.to_dict())
             try:
                 await self.graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.post(item_data)
-                logging.info('Inserted article with ID %s', row['Entry_ID'])
+                logger.info('Inserted article with ID %s', row['Entry_ID'])
             except Exception as e:
-                logging.error('Failed to insert article with ID %s: %s', row['Entry_ID'], e)
+                logger.error('Failed to insert article with ID %s: %s', row['Entry_ID'], e)
 
     def _get_config_params(self, site_id: str, list_id: str, config_container_name: str, config_blob_name: str):
         site_id = site_id or os.getenv('SITE_ID')
@@ -229,12 +224,12 @@ class RssProcessor:
         # Load role content from Azure Blob Storage
         system_content = await self.acf.download_blob_content(system_container_name, system_blob_name)
         if system_content is None:
-            logging.error("Failed to load system role content.")
+            logger.error("Failed to load system role content.")
             return
 
         user_content_template = await self.acf.download_blob_content(user_container_name, user_blob_name)
         if user_content_template is None:
-            logging.error("Failed to load user role content.")
+            logger.error("Failed to load user role content.")
             return
 
         # Fetch items from Microsoft List with necessary fields only
@@ -244,13 +239,13 @@ class RssProcessor:
             request_configuration = RequestConfiguration(query_parameters=query_params)
             items = await self.graph_service_client.sites[site_id].lists[list_id].items.get(request_configuration=request_configuration)
         except Exception as e:
-            logging.error('Failed to fetch items from Microsoft List: %s', e)
+            logger.error('Failed to fetch items from Microsoft List: %s', e)
             return
 
         for item in items:
             content_text = item.get('fields', {}).get('summary', '')
             if not content_text:
-                logging.info('Skipping item with ID %s due to empty content.', item.get("id"))
+                logger.info('Skipping item with ID %s due to empty content.', item.get("id"))
                 continue
 
             # Format the user message with the content text
@@ -288,7 +283,7 @@ class RssProcessor:
                     summary_text = "No summary"
                     engagement_score = 5
             except openai.OpenAIError as e:
-                logging.error('OpenAI API error: %s', e)
+                logger.error('OpenAI API error: %s', e)
                 summary_text = "No summary"
                 engagement_score = 5
             except (json.JSONDecodeError, TypeError):
@@ -300,4 +295,4 @@ class RssProcessor:
 
             result = await self.graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.by_list_item_id(item["id"]).fields.patch(request_body)
 
-            logging.info("Updated article %s with status %s.", item.get("id"), result[0])
+            logger.info("Updated article %s with status %s.", item.get("id"), result[0])

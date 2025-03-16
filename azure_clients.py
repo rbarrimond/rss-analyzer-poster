@@ -7,13 +7,10 @@ from azure.storage.blob.aio import BlobServiceClient
 from azure.core.exceptions import ResourceNotFoundError, ClientAuthenticationError, HttpResponseError
 from msgraph import GraphServiceClient
 from openai import AzureOpenAI
+from utils.logger import configure_logging
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+logger = configure_logging(__name__)
 
 # Load credentials from environment variables or configuration
 TENANT_ID = os.getenv("RSSAP_TENANT_ID", "AZURE_TENANT_ID")
@@ -73,9 +70,9 @@ class AzureClientFactory:
 
                 # Instantiate the GraphServiceClient with the credential
                 self._graph_client = GraphServiceClient(credential)
-                logging.info("✅ Microsoft Graph client authenticated successfully.")
+                logger.info("✅ Microsoft Graph client authenticated successfully.")
             except Exception as e:
-                logging.error("❌ GraphServiceClient authentication failed: %s", e)
+                logger.error("❌ GraphServiceClient authentication failed: %s", e)
                 raise
         return self._graph_client
 
@@ -88,7 +85,7 @@ class AzureClientFactory:
                 account_url = os.getenv("AZURE_STORAGEACCOUNT_BLOBENDPOINT")
                 if not account_url:
                     raise ValueError("Missing Azure Blob Storage endpoint URL.")
-                logging.info("Using account URL: %s", account_url)
+                logger.info("Using account URL: %s", account_url)
 
                 if account_url.startswith("http://127.0.0.1:10000"):
                     # Use the local development storage account with connection string
@@ -100,19 +97,19 @@ class AzureClientFactory:
                         "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
                         "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
                     )
-                    logging.info("Using connection string for local Azurite storage.")
+                    logger.info("Using connection string for local Azurite storage.")
                     self._blob_service_client = BlobServiceClient.from_connection_string(connection_string)
                 else:
                     # Ensure the account URL uses HTTPS
                     if not account_url.startswith("https://"):
                         raise ValueError("Token credential is only supported with HTTPS.")
-                    logging.info("Using DefaultAzureCredential for authentication.")
+                    logger.info("Using DefaultAzureCredential for authentication.")
                     # Return a BlobServiceClient instance
                     self._blob_service_client = BlobServiceClient(account_url, credential=DefaultAzureCredential())
 
-                logging.info("✅ BlobServiceClient created successfully.")
+                logger.info("✅ BlobServiceClient created successfully.")
             except Exception as e:
-                logging.error("❌ BlobServiceClient creation failed: %s", e)
+                logger.error("❌ BlobServiceClient creation failed: %s", e)
                 raise
         return self._blob_service_client
 
@@ -136,9 +133,9 @@ class AzureClientFactory:
                     api_version=api_version,
                     api_key=api_key
                 )
-                logging.info("✅ Azure OpenAI client created successfully.")
+                logger.info("✅ Azure OpenAI client created successfully.")
             except Exception as e:
-                logging.error("❌ Azure OpenAI client creation failed: %s", e)
+                logger.error("❌ Azure OpenAI client creation failed: %s", e)
                 raise
         return self._openai_client
 
@@ -152,7 +149,7 @@ class AzureClientFactory:
         :return: The content of the blob as a stripped string, or None if an error occurs.
         """
         if not container_name or not blob_name:
-            logging.error("Container name or blob name is missing.")
+            logger.error("Container name or blob name is missing.")
             return None
 
         try:
@@ -162,11 +159,11 @@ class AzureClientFactory:
             content = await blob_content.readall()
             return content.decode('utf-8').strip()
         except ResourceNotFoundError:
-            logging.error("Blob not found: container=%s, blob=%s", container_name, blob_name)
+            logger.error("Blob not found: container=%s, blob=%s", container_name, blob_name)
         except ClientAuthenticationError:
-            logging.error("Authentication error while accessing blob: container=%s, blob=%s", container_name, blob_name)
+            logger.error("Authentication error while accessing blob: container=%s, blob=%s", container_name, blob_name)
         except HttpResponseError as e:
-            logging.error("HTTP response error while accessing blob: container=%s, blob=%s, error=%s", container_name, blob_name, e)
+            logger.error("HTTP response error while accessing blob: container=%s, blob=%s, error=%s", container_name, blob_name, e)
         except Exception as e:
-            logging.error("Failed to download blob content: %s", e)
+            logger.error("Failed to download blob content: %s", e)
         return None

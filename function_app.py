@@ -26,22 +26,18 @@ Logging:
 - Logging is configured to provide detailed information about the operations performed by each function.
 """
 
-import logging
 import os
-import asyncio  # Import asyncio
+import asyncio
+import logging
 
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
 from rss_processor import RssProcessor
+from utils.logger import configure_logging, update_handler_level, TRACE_LEVEL
 
 # Configure logging
-logging.basicConfig(
-    force=True,
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+logger = configure_logging(__name__)
 
 # Create the Azure Functions application instance
 app = func.FunctionApp()
@@ -59,7 +55,7 @@ async def rss_feed_processor(myTimer: func.TimerRequest) -> None:
 
     :param myTimer: The timer request object that triggers the function.
     """
-    logging.info('RSS Feed Processor triggered.')
+    logger.info('RSS Feed Processor triggered.')
     async with lock:  # Ensure atomic access
         await RssProcessor().read_and_store_feeds()
 
@@ -74,7 +70,7 @@ async def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
     :param req: The HTTP request object.
     :return: HTTP response indicating the result of the operation.
     """
-    logging.info('RSS Feed Processor HTTP triggered.')
+    logger.info('RSS Feed Processor HTTP triggered.')
     try:
         req_body = req.get_json()
     except ValueError:
@@ -113,7 +109,7 @@ async def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     :param req: The HTTP request object.
     :return: HTTP response indicating the result of the operation.
     """
-    logging.info('RSS Summarizer HTTP triggered.')
+    logger.info('RSS Summarizer HTTP triggered.')
     async with lock:  # Ensure atomic access
         # Add the logic to summarize and update existing RSS articles
         pass
@@ -130,9 +126,41 @@ async def rss_poster_http(req: HttpRequest) -> HttpResponse:
     :param req: The HTTP request object.
     :return: HTTP response indicating the result of the operation.
     """
-    logging.info('RSS Poster HTTP triggered.')
+    logger.info('RSS Poster HTTP triggered.')
     async with lock:  # Ensure atomic access
         # Add the logic to fetch RSS feeds and store them in Microsoft Lists
         pass
 
     return func.HttpResponse("RSS feeds collected and stored successfully.", status_code=200)
+
+@app.function_name(name="updateLogLevel")
+@app.route(route="updateLogLevel", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
+async def update_log_level(req: HttpRequest) -> HttpResponse:
+    """
+    HTTP-triggered Function:
+    Updates the log level of the logger based on the request parameter.
+
+    :param req: The HTTP request object.
+    :return: HTTP response indicating the result of the operation.
+    """
+    logger.info('Update Log Level HTTP triggered.')
+    try:
+        req_body = req.get_json()
+    except ValueError:
+        return func.HttpResponse("Invalid JSON body.", status_code=400)
+
+    new_level = req_body.get('log_level', 'INFO').upper()
+    level_mapping = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL,
+        'TRACE': TRACE_LEVEL
+    }
+
+    if new_level in level_mapping:
+        update_handler_level(logger, level_mapping[new_level])
+        return func.HttpResponse(f"Log level updated to {new_level}.", status_code=200)
+    else:
+        return func.HttpResponse(f"Invalid log level: {new_level}.", status_code=400)
