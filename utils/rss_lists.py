@@ -51,7 +51,7 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
 
         # Get the actual field names for Entry_ID and Processed
         entry_id_field = columns_df[columns_df['display_name'] == 'Entry_ID']['name'].values[0]
-        processed_field = columns_df[columns_df['displayName'] == 'Processed']['name'].values[0]
+        processed_field = columns_df[columns_df['display_name'] == 'Processed']['name'].values[0]
         logger.debug('Entry_ID field: %s, Processed field: %s', entry_id_field, processed_field)
 
         # Define query parameters to expand fields and select Entry_ID and Processed fields
@@ -62,7 +62,7 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
         # Fetch items from the Microsoft List
         logger.debug('Fetching items from Microsoft List')
         items = await graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.get(request_configuration=request_configuration)
-        items_df = pd.DataFrame([item['fields'] for item in items['value']])
+        items_df = pd.DataFrame([item.fields.additional_data for item in items.value])
         logger.debug('Items fetched: %s', items_df)
 
         # Set the index to Entry_ID and get the Processed status
