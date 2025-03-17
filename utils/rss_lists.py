@@ -17,11 +17,11 @@ Logging:
 - Logging is configured to provide detailed information about the operations performed by each function.
 """
 
+from msgraph.generated.sites.item.lists.item.items.items_request_builder import ItemsRequestBuilder
+from msgraph.generated.sites.item.lists.item.columns.columns_request_builder import ColumnsRequestBuilder
 import pandas as pd
 from kiota_abstractions.base_request_configuration import RequestConfiguration
 from msgraph.generated.models.field_value_set import FieldValueSet
-from msgraph.generated.sites.item.lists.item.items.items_request_builder import \
-    ItemsRequestBuilder
 
 from utils.logger import configure_logging
 
@@ -39,13 +39,35 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
     :return: Series containing the processed items.
     """
     try:
-        query_params = ItemsRequestBuilder.ItemsRequestBuilderGetQueryParameters(
-            expand=["fields"],
-            select=["id", "fields/Entry_ID", "fields/Processed"])
+        # Define query parameters to select displayName and name fields
+        query_params = ColumnsRequestBuilder.ColumnsRequestBuilderGetQueryParameters(select=["displayName", "name"])
         request_configuration = RequestConfiguration(query_parameters=query_params)
+        
+        # Fetch columns from the Microsoft List
+        logger.debug('Fetching columns from Microsoft List')
+        columns = await graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).columns.get(request_configuration=request_configuration)
+        columns_df = pd.DataFrame([column for column in columns.value])
+        logger.debug('Columns fetched: %s', columns_df)
+
+        # Get the actual field names for Entry_ID and Processed
+        entry_id_field = columns_df[columns_df['display_name'] == 'Entry_ID']['name'].values[0]
+        processed_field = columns_df[columns_df['displayName'] == 'Processed']['name'].values[0]
+        logger.debug('Entry_ID field: %s, Processed field: %s', entry_id_field, processed_field)
+
+        # Define query parameters to expand fields and select Entry_ID and Processed fields
+        query_params = ItemsRequestBuilder.ItemsRequestBuilderGetQueryParameters(
+            expand=[f"fields($select={entry_id_field},{processed_field})"])
+        request_configuration = RequestConfiguration(query_parameters=query_params)
+        
+        # Fetch items from the Microsoft List
+        logger.debug('Fetching items from Microsoft List')
         items = await graph_service_client.sites.by_site_id(site_id).lists.by_list_id(list_id).items.get(request_configuration=request_configuration)
-        items_df = pd.DataFrame([item['fields'] for item in items])
-        items_status = items_df.set_index('Entry_ID')['Processed']
+        items_df = pd.DataFrame([item['fields'] for item in items['value']])
+        logger.debug('Items fetched: %s', items_df)
+
+        # Set the index to Entry_ID and get the Processed status
+        items_status = items_df.set_index(entry_id_field)[processed_field]
+        logger.debug('Processed status: %s', items_status)
         return items_status
     except Exception as e:
         logger.warning('Failed to fetch items from Microsoft List: %s', e)
