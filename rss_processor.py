@@ -126,10 +126,16 @@ class RssProcessor:
             try:
                 feed = feedparser.parse(feed_url)
                 if feed.entries:
-                    fp_df = pd.DataFrame(feed.entries).set_index('id', inplace=True)
-                    # Create filtered output DataFrame by excluding already processed entries
-                    output_df = create_output_df(fp_df[~items_status])
-                    await post_feed_entries(self.graph_service_client, output_df, site_id, list_id)
+                    fp_df = pd.DataFrame(feed.entries)
+                    if 'id' in fp_df.columns:
+                        fp_df.set_index('id', inplace=True)
+                        # Reindex items_status to match fp_df index
+                        items_status = items_status.reindex(fp_df.index, fill_value=False)
+                        # Create filtered output DataFrame by excluding already processed entries
+                        output_df = create_output_df(fp_df[~items_status])
+                        await post_feed_entries(self.graph_service_client, output_df, site_id, list_id)
+                    else:
+                        logger.warning('Feed entries do not contain an "id" field: %s', feed_url)
             except Exception as e:
                 logger.warning('Failed to process feed %s: %s', feed_url, e)
 
