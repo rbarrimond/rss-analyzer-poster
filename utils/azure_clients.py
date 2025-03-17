@@ -7,6 +7,7 @@ from azure.core.exceptions import ResourceNotFoundError, ClientAuthenticationErr
 from msgraph import GraphServiceClient
 from openai import AzureOpenAI
 from utils.logger import configure_logging
+from O365 import Account  # Import the O365 Account class
 
 # Configure logging
 logger = configure_logging(__name__)
@@ -32,6 +33,7 @@ class AzureClientFactory:
         self._graph_client = None
         self._blob_service_client = None
         self._openai_client = None
+        self._o365_account = None  # Add a new attribute for the O365 Account
 
     @classmethod
     def get_instance(cls):
@@ -138,6 +140,25 @@ class AzureClientFactory:
                 raise
         return self._openai_client
 
+    async def get_o365_account(self) -> Account:
+        """
+        Returns an authenticated O365 Account object using the same credentials as the Graph client.
+        """
+        if self._o365_account is None:
+            try:
+                if not all([TENANT_ID, CLIENT_ID, CLIENT_SECRET]):
+                    raise ValueError("Missing Azure AD credentials. Check environment variables.")
+
+                credentials = (CLIENT_ID, CLIENT_SECRET)
+                self._o365_account = Account(credentials, tenant_id=TENANT_ID)
+                if not self._o365_account.is_authenticated:
+                    self._o365_account.authenticate(scopes=['basic', 'message_all'])
+                logger.info("✅ O365 Account authenticated successfully.")
+            except Exception as e:
+                logger.error("❌ O365 Account authentication failed: %s", e)
+                raise
+        return self._o365_account
+
     async def download_blob_content(self, container_name: str, blob_name: str) -> Optional[str]:
         """
         Downloads the content of a blob from Azure Blob Storage, decodes it to UTF-8,
@@ -168,3 +189,4 @@ class AzureClientFactory:
         except Exception as e:
             logger.error("Failed to download blob content: %s", e)
         return None
+

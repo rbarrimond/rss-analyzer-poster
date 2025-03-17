@@ -16,3 +16,5 @@ msgraph-core
 azure-keyvault-secrets
 # Pandas to read and manipulate data
 pandas
+# Library for O365 API interaction
+O365
