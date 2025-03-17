@@ -162,3 +162,7 @@ __azurite*.json
 
 # Python packages
 .python_packages
+
+# Ignore files created by python-o365
+o365_token.txt
+o365_token.json

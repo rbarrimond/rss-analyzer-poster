@@ -1,13 +1,16 @@
 import os
 import threading
 from typing import Optional
+
+from azure.core.exceptions import (ClientAuthenticationError,
+                                   HttpResponseError, ResourceNotFoundError)
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient
-from azure.core.exceptions import ResourceNotFoundError, ClientAuthenticationError, HttpResponseError
 from msgraph import GraphServiceClient
+from O365 import Account
 from openai import AzureOpenAI
+
 from utils.logger import configure_logging
-from O365 import Account  # Import the O365 Account class
 
 # Configure logging
 logger = configure_logging(__name__)
@@ -150,9 +153,9 @@ class AzureClientFactory:
                     raise ValueError("Missing Azure AD credentials. Check environment variables.")
 
                 credentials = (CLIENT_ID, CLIENT_SECRET)
-                self._o365_account = Account(credentials, tenant_id=TENANT_ID)
-                if not self._o365_account.is_authenticated:
-                    self._o365_account.authenticate(scopes=['basic', 'message_all'])
+                self._o365_account = Account(credentials, auth_flow_type="credentials", tenant_id=TENANT_ID)
+                if not self._o365_account.authenticate():
+                    raise ClientAuthenticationError("O365 Account authentication failed.")
                 logger.info("✅ O365 Account authenticated successfully.")
             except Exception as e:
                 logger.error("❌ O365 Account authentication failed: %s", e)
