@@ -33,7 +33,7 @@ class AzureClientFactory:
         self._graph_client = None
         self._blob_service_client = None
         self._openai_client = None
-        self._o365_account = None  # Add a new attribute for the O365 Account
+        self._o365_account = None
 
     @classmethod
     def get_instance(cls):
