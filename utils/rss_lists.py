@@ -122,8 +122,14 @@ def create_output_df(fp_df: pd.DataFrame) -> pd.DataFrame:
     output_df['Summary'] = fp_df['summary'].fillna('') if 'summary' in fp_df.columns else ''
     output_df['Entry_ID'] = fp_df.index
     output_df['Published_Date'] = fp_df['published'].fillna('') if 'published' in fp_df.columns else ''
-    output_df['Full_Content'] = fp_df['content'].apply(lambda x: x[0].get('value', '') if x else '') if 'content' in fp_df.columns else ''
-    output_df['Categories'] = fp_df['tags'].apply(lambda x: ', '.join([tag['term'] for tag in x]) if x else '') if 'tags' in fp_df.columns else ''
+    if 'content' in fp_df.columns:
+        output_df['Full_Content'] = fp_df['content'].apply(lambda x: x[0].get('value', '') if x else '')
+    else:
+        output_df['Full_Content'] = ''
+    if 'tags' in fp_df.columns:
+        output_df['Categories'] = fp_df['tags'].apply(lambda x: ', '.join([tag['term'] for tag in x]) if x else '')
+    else:
+        output_df['Categories'] = ''
     output_df['Author'] = fp_df['author'].fillna('') if 'author' in fp_df.columns else ''
     output_df['Keywords'] = ''  # Placeholder for keyword extraction (comma-separated)
     output_df['Sentiment'] = ''  # Placeholder for sentiment analysis [Positive, Negative, Neutral, Mixed]
