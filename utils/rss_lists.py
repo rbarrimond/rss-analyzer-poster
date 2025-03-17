@@ -104,61 +104,64 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
 
 def create_output_df(fp_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Creates an output DataFrame with specific columns from the input DataFrame.
+    Creates an output DataFrame with predefined columns from the input DataFrame.
 
     :param fp_df: Input DataFrame containing RSS feed entries from feedparser.
     :return: Output DataFrame with specific columns for storing in Microsoft Lists.
     """
     required_columns = ['title', 'link']
-    missing_columns = [col for col in required_columns if col not in fp_df.columns]
-    
+    missing_columns = [
+        col for col in required_columns if col not in fp_df.columns]
+
     if missing_columns:
-        logger.error('Missing required columns in input DataFrame: %s', missing_columns)
+        logger.error(
+            'Missing required columns in input DataFrame: %s', missing_columns)
         return pd.DataFrame()  # Return an empty DataFrame if required columns are missing
 
-    output_df = pd.DataFrame(index=fp_df.index)
-    
-    # Set smart defaults for missing columns and missing values
-    
-    # Extract known fields
-    output_df["Title"] = fp_df["title"]
-    output_df["URL"] = fp_df["link"]
-    output_df["Summary"] = fp_df["summary"] if "summary" in fp_df.columns else None
-    output_df["Entry_ID"] = fp_df.index.astype(str)
-    output_df["Published_Date"] = fp_df["published"] if "published" in fp_df.columns else None
-
-    # Extract 'content' safely
-    output_df["Full_Content"] = fp_df["content"].apply(
-        lambda x: x[0]["value"] if isinstance(x, list) and x else None
-    ) if "content" in fp_df.columns else None
-
-    # Extract categories
-    output_df["Categories"] = fp_df["tags"].apply(
-        lambda x: [tag["term"] for tag in x] if isinstance(x, list) else None
-    ) if "tags" in fp_df.columns else None
-
-    # Extract author
-    output_df["Author"] = fp_df["author"] if "author" in fp_df.columns else None
-
-    # Fill missing values in ALL columns at once
-    output_df.fillna({
+    # Define all columns up front
+    column_defaults = {
         "Title": "Untitled",
         "URL": "",
         "Summary": "No Summary Available",
-        "Entry_ID": "-1",
+        "Entry_ID": fp_df.index.astype(str),
         "Published_Date": "1970-01-01T00:00:00Z",
         "Full_Content": "No Content Available",
-        "Categories": [],
+        # Multi-select field, needs a list per row
+        "Categories": [[]] * len(fp_df),
         "Author": "Unknown Author",
         "Keywords": "",
         "Sentiment": "Neutral",
         "Readability_Score": 0.0,
         "Engagement_Score": 0,
         "Processed": False,
-        "Engagement_Type": [],
+        # Multi-choice field, should be list per row
+        "Engagement_Type": [[]] * len(fp_df),
         "Response_Received": False
-    }, inplace=True)
-    
+    }
+
+    # Create DataFrame with all expected columns
+    output_df = pd.DataFrame(column_defaults, index=fp_df.index)
+
+    # Override columns with actual data from `fp_df` (if available)
+    output_df["Title"] = fp_df["title"]
+    output_df["URL"] = fp_df["link"]
+    output_df["Summary"] = fp_df["summary"] if "summary" in fp_df.columns else output_df["Summary"]
+    output_df["Author"] = fp_df["author"] if "author" in fp_df.columns else output_df["Author"]
+    output_df["Published_Date"] = fp_df["published"] if "published" in fp_df.columns else output_df["Published_Date"]
+
+    # Extract content safely
+    if "content" in fp_df.columns:
+        output_df["Full_Content"] = fp_df["content"].apply(
+            lambda x: x[0]["value"] if isinstance(
+                x, list) and x else "No Content Available"
+        )
+
+    # Extract categories safely
+    if "tags" in fp_df.columns:
+        output_df["Categories"] = fp_df["tags"].apply(
+            lambda x: [tag["term"] for tag in x] if isinstance(x, list) else []
+        )
+
     return output_df
 
 async def post_feed_entries(graph_service_client, output_df: pd.DataFrame, site_id: str, list_id: str) -> None:
