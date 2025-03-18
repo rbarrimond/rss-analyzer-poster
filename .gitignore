@@ -166,3 +166,6 @@ __azurite*.json
 # Ignore files created by python-o365
 o365_token.txt
 o365_token.json
+
+# Ignore sensitive local files
+.private/
