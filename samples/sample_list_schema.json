@@ -1,0 +1,217 @@
+{
+    "list_info": {
+        "title": "Sample Engagement Tracker",
+        "description": "Sample schema for tracking engagement metrics.",
+        "site_url": "https://example.sharepoint.com/sites/sample",
+        "list_id": "00000000-0000-0000-0000-000000000000"
+    },
+    "fields": [
+        {
+            "display_name": "Title",
+            "internal_name": "Title",
+            "type": "Single Line of Text",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": false,
+            "default": "Untitled",
+            "description": "The main title of the blog post, used for identification. This field is required in Microsoft Lists and cannot be removed.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Title",
+            "internal_name": "Title",
+            "type": "Single Line of Text",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": false,
+            "default": "Untitled",
+            "description": "The main title of the blog post, used for identification. This field is required in Microsoft Lists and cannot be removed.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "URL",
+            "internal_name": "field_a1b2",
+            "type": "Hyperlink",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": false,
+            "default": "",
+            "description": "The direct link to the blog post.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Summary",
+            "internal_name": "field_c3d4",
+            "type": "Multiple Lines of Text",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": true,
+            "default": "No Summary Available",
+            "description": "A short excerpt summarizing the blog post content.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Entry_ID",
+            "internal_name": "field_e5f6",
+            "type": "Single Line of Text",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": false,
+            "default": "-1",
+            "description": "A unique identifier for tracking this entry across systems.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Published_Date",
+            "internal_name": "field_g7h8",
+            "type": "Date and Time",
+            "python_type": "str",
+            "pandas_type": "datetime64",
+            "nullable": false,
+            "default": "1970-01-01T00:00:00Z",
+            "description": "The date and time when the blog post was published.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Full_Content",
+            "internal_name": "field_i9j0",
+            "type": "Multiple Lines of Text",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": true,
+            "default": "No Content Available",
+            "description": "The full content of the blog post, if available.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Categories",
+            "internal_name": "field_k1l2",
+            "type": "Choice (Multi-select)",
+            "python_type": "list[str]",
+            "pandas_type": "object",
+            "nullable": true,
+            "default": [],
+            "description": "A list of categories or tags assigned to the blog post.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Author",
+            "internal_name": "field_m3n4",
+            "type": "Single Line of Text",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": true,
+            "default": "Unknown Author",
+            "description": "The name of the person or organization that wrote the blog post.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Keywords",
+            "internal_name": "field_o5p6",
+            "type": "Single Line of Text",
+            "python_type": "str",
+            "pandas_type": "object",
+            "nullable": true,
+            "default": "",
+            "description": "Relevant keywords extracted from the blog post.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Sentiment",
+            "internal_name": "field_q7r8",
+            "type": "Choice (Single-select)",
+            "python_type": "str",
+            "pandas_type": "category",
+            "nullable": false,
+            "default": "Neutral",
+            "description": "An AI-generated sentiment analysis result for the post.",
+            "allowed_values": [
+                "Positive",
+                "Neutral",
+                "Negative",
+                "Mixed"
+            ],
+            "range": null
+        },
+        {
+            "display_name": "Readability_Score",
+            "internal_name": "field_s9t0",
+            "type": "Number",
+            "python_type": "float",
+            "pandas_type": "float64",
+            "nullable": false,
+            "default": 0.0,
+            "description": "A numerical score indicating how easy the blog post is to read.",
+            "allowed_values": null,
+            "range": [
+                0.0,
+                100.0
+            ]
+        },
+        {
+            "display_name": "Engagement_Score",
+            "internal_name": "field_u1v2",
+            "type": "Number",
+            "python_type": "int",
+            "pandas_type": "int64",
+            "nullable": false,
+            "default": 0,
+            "description": "A calculated score representing interactions such as shares and comments.",
+            "allowed_values": null,
+            "range": [
+                0,
+                1000
+            ]
+        },
+        {
+            "display_name": "Processed",
+            "internal_name": "field_w3x4",
+            "type": "Yes/No (Boolean)",
+            "python_type": "bool",
+            "pandas_type": "bool",
+            "nullable": false,
+            "default": false,
+            "description": "Indicates whether the entry has been processed for analysis.",
+            "allowed_values": null,
+            "range": null
+        },
+        {
+            "display_name": "Engagement_Type",
+            "internal_name": "field_y5z6",
+            "type": "Choice (Multi-select)",
+            "python_type": "list[str]",
+            "pandas_type": "object",
+            "nullable": true,
+            "default": [],
+            "description": "A list of engagement actions taken, such as 'Liked' or 'Shared'.",
+            "allowed_values": [
+                "Shared",
+                "Liked",
+                "Commented"
+            ],
+            "range": null
+        },
+        {
+            "display_name": "Response_Received",
+            "internal_name": "field_y5z6",
+            "type": "Yes/No (Boolean)",
+            "python_type": "bool",
+            "pandas_type": "bool",
+            "nullable": false,
+            "default": false,
+            "description": "Indicates whether there was a response to the blog post.",
+            "allowed_values": null,
+            "range": null
+        }
+    ]
+}
