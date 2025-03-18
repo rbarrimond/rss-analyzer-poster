@@ -19,18 +19,6 @@
             "range": null
         },
         {
-            "display_name": "Title",
-            "internal_name": "Title",
-            "type": "Single Line of Text",
-            "python_type": "str",
-            "pandas_type": "object",
-            "nullable": false,
-            "default": "Untitled",
-            "description": "The main title of the blog post, used for identification. This field is required in Microsoft Lists and cannot be removed.",
-            "allowed_values": null,
-            "range": null
-        },
-        {
             "display_name": "URL",
             "internal_name": "field_a1b2",
             "type": "Hyperlink",
