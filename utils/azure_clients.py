@@ -86,39 +86,16 @@ class AzureClientFactory:
 
     async def get_blob_service_client(self) -> BlobServiceClient:
         """
-        Returns a BlobServiceClient with the selected credential type.
+        Returns a BlobServiceClient using DefaultAzureCredential.
         """
         if self._blob_service_client is None:
             try:
                 account_url = os.getenv("AZURE_STORAGEACCOUNT_BLOBENDPOINT")
                 if not account_url:
-                    raise ValueError(
-                        "Missing Azure Blob Storage endpoint URL.")
-                logger.info("Using account URL: %s", account_url)
+                    raise ValueError("Missing Azure Blob Storage endpoint URL.")
 
-                if account_url.startswith("http://127.0.0.1:10000"):
-                    # Use the local development storage account with connection string
-                    # Not a secure way to store connection strings, only for local development
-                    # Azurite storage emulator must be running
-                    connection_string = (
-                        "DefaultEndpointsProtocol=http;"
-                        "AccountName=devstoreaccount1;"
-                        "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
-                        "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-                    )
-                    logger.info(
-                        "Using connection string for local Azurite storage.")
-                    self._blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-                else:
-                    # Ensure the account URL uses HTTPS
-                    if not account_url.startswith("https://"):
-                        raise ValueError(
-                            "Token credential is only supported with HTTPS.")
-                    logger.info(
-                        "Using DefaultAzureCredential for authentication.")
-                    # Return a BlobServiceClient instance
-                    self._blob_service_client = BlobServiceClient(
-                        account_url, credential=DefaultAzureCredential())
+                logger.info("Using DefaultAzureCredential for BlobServiceClient.")
+                self._blob_service_client = BlobServiceClient(account_url, credential=DefaultAzureCredential())
 
                 logger.info("✅ BlobServiceClient created successfully.")
             except Exception as e:
