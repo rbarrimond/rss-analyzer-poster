@@ -61,6 +61,10 @@ resource "azurerm_cognitive_deployment" "gpt35_turbo" {
   sku {
     name = "Standard"
   }
+
+  lifecycle {
+    ignore_changes = [model[0].version]
+  }
 }
 
 resource "azurerm_cognitive_deployment" "gpt4o" {
@@ -73,6 +77,10 @@ resource "azurerm_cognitive_deployment" "gpt4o" {
 
   sku {
     name = "Standard"
+  }
+
+  lifecycle {
+    ignore_changes = [model[0].version]
   }
 }
 
@@ -87,6 +95,10 @@ resource "azurerm_cognitive_deployment" "gpt4o_mini" {
   sku {
     name = "Standard"
   }
+
+  lifecycle {
+    ignore_changes = [model[0].version]
+  }
 }
 
 resource "azurerm_cognitive_deployment" "text_embedding3_small" {
@@ -100,6 +112,10 @@ resource "azurerm_cognitive_deployment" "text_embedding3_small" {
   sku {
     name = "Standard"
   }
+
+  lifecycle {
+    ignore_changes = [model[0].version]
+  }
 }
 
 resource "azurerm_cognitive_deployment" "text_embedding3_large" {
@@ -112,5 +128,9 @@ resource "azurerm_cognitive_deployment" "text_embedding3_large" {
 
   sku {
     name = "Standard"
+  }
+
+  lifecycle {
+    ignore_changes = [model[0].version]
   }
 }
