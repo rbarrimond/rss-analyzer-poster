@@ -105,11 +105,22 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
   }
 }
 
-# Assign the Cognitive Services OpenAI User role to the Function App
+# Assign the important Azure services roles to the Function App
 resource "azurerm_role_assignment" "cognitive_account_access" {
   principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
   role_definition_name = "Cognitive Services OpenAI User"
   scope                = data.azurerm_cognitive_account.main.id
+}
+resource "azurerm_role_assignment" "rss_analyzer_poster_blob_access" {
+  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
+  role_definition_name = "Storage Blob Data Contributor"
+  scope                = azurerm_storage_account.strg_storageaccount.id
+}
+
+resource "azurerm_role_assignment" "rss_feed_analyzer_storage_access" {
+  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
+  role_definition_name = "Storage Table Data Contributor"
+  scope                = azurerm_storage_account.strg_storageaccount.id
 }
 
 # Assign RSS Feed Analyzer-Poster roles to the Function App thus enabling
