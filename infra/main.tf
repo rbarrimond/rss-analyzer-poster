@@ -22,8 +22,7 @@
 # - Application Insights: Provides monitoring and observability for performance and health.
 # - Linux Function App: Hosts the serverless application that processes RSS feeds.
 # - Storage Account: Stores processed data, AI-generated insights, and metadata.
-# - Role Assignments: Grants necessary permissions for AI services, email notifications, 
-#   and SharePoint integration via Microsoft Graph API.
+# - Role Assignments: Grants necessary permissions for AI services and Azure resources.
 #
 # Key Features:
 # - Scalability: Serverless compute with Azure Functions to optimize costs.
@@ -109,17 +108,5 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
 resource "azurerm_role_assignment" "cognitive_account_access" {
   principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
   role_definition_name = "Cognitive Services OpenAI User"
-  scope                = data.azurerm_cognitive_account.cognitive_account.id
-}
-
-resource "azurerm_role_assignment" "graph_api_mail_send" {
-  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
-  role_definition_name = "Mail.Send"
-  scope                = "https://graph.microsoft.com/"
-}
-
-resource "azurerm_role_assignment" "graph_api_sites_readwrite" {
-  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
-  role_definition_name = "Sites.ReadWrite.All"
-  scope                = "https://graph.microsoft.com/"
+  scope                = data.azurerm_cognitive_account.main.id
 }
