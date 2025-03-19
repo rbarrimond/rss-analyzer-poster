@@ -13,29 +13,32 @@
 # - Ensure all required variables, such as `var.resource_suffix`, are defined in your Terraform variables file.
 # - Adjust permissions and expiration dates as needed to fit your security and operational requirements.
 
-# Purpose: Create an Azure AD application, client secret, service principal, and assign permissions to the Microsoft Graph API
+# Retrieve well-known application IDs including Microsoft Graph API 
+# No manual configuration needed, Terraform fetches the latest well-known IDs
+data "azuread_application_published_app_ids" "well_known" {}
+
+ # Retrieve the Microsoft Graph API service principal
+resource "azuread_service_principal" "msgraph" {
+  client_id    = data.azuread_application_published_app_ids.well_known.result.MicrosoftGraph
+  use_existing = true
+}
 
 # Register an Azure Active Directory (AD) application
 resource "azuread_application" "rss_feed_analyzer" {
   display_name     = "RSS Feed Analyzer-Poster" # Display name of the app registration
   sign_in_audience = "AzureADMyOrg"             # Restrict sign-in to the organization only
 
-  # Assign Microsoft Graph API permissions to the application
+  # Assign Microsoft Graph API, Mail required permissions to the application
   required_resource_access {
-    resource_app_id = "00000003-0000-0000-c000-000000000000" # Microsoft Graph API
+    resource_app_id = data.azuread_application_published_app_ids.well_known.result.MicrosoftGraph
 
     resource_access {
-      id   = "9492366f-7969-46a4-8d15-ed1a20078fff" # Sites.ReadWrite.All (Application)
+      id   = data.azuread_service_principal.msgraph.app_role_ids["Sites.ReadWriteAll"]
       type = "Role"
     }
 
     resource_access {
-      id   = "b633e1c5-b582-4048-a93e-9f11b44c7e96" # Mail.Send (Application)
-      type = "Role"
-    }
-
-    resource_access {
-      id   = "0c0bf378-bf22-4481-8f81-9e89a9b4960a" # Sites.Manage.All (Application)
+      id   = data.azuread_service_principal.msgraph.app_role_ids["Mail.Send"]
       type = "Role"
     }
   }
