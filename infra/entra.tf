@@ -33,12 +33,12 @@ resource "azuread_application" "rss_feed_analyzer" {
     resource_app_id = data.azuread_application_published_app_ids.well_known.result.MicrosoftGraph
 
     resource_access {
-      id   = data.azuread_service_principal.msgraph.app_role_ids["Sites.ReadWriteAll"]
+      id   = azuread_service_principal.msgraph.app_role_ids["Sites.ReadWrite.All"]
       type = "Role"
     }
 
     resource_access {
-      id   = data.azuread_service_principal.msgraph.app_role_ids["Mail.Send"]
+      id   = azuread_service_principal.msgraph.app_role_ids["Mail.Send"]
       type = "Role"
     }
   }
