@@ -9,3 +9,4 @@ numpy
 jupyter
 matplotlib
 seaborn
+tabulate

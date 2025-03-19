@@ -169,3 +169,7 @@ o365_token.json
 
 # Ignore sensitive local files
 .private/
+
+# VS Code
+.vscode/
+*.code-workspace
