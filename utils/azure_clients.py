@@ -20,6 +20,7 @@ TENANT_ID = os.getenv("RSSAP_TENANT_ID", "AZURE_TENANT_ID")
 CLIENT_ID = os.getenv("RSSAP_CLIENT_ID", "AZURE_CLIENT_ID")
 CLIENT_SECRET = os.getenv("RSSAP_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
 
+
 class AzureClientFactory:
     """
     AzureClientFactory is responsible for creating and managing Azure service clients.
@@ -42,10 +43,10 @@ class AzureClientFactory:
     def get_instance(cls):
         """
         Returns a singleton instance of the class.
-        
+
         This method ensures that only one instance of the class is created.
         If the instance does not exist, it creates one in a thread-safe manner.
-        
+
         Returns:
             cls: The singleton instance of the class.
         """
@@ -63,7 +64,8 @@ class AzureClientFactory:
             try:
                 # Check if all required credentials are available
                 if not all([TENANT_ID, CLIENT_ID, CLIENT_SECRET]):
-                    raise ValueError("Missing Azure AD credentials. Check environment variables.")
+                    raise ValueError(
+                        "Missing Azure AD credentials. Check environment variables.")
 
                 # Create a ClientSecretCredential object using the loaded credentials
                 credential = ClientSecretCredential(
@@ -74,9 +76,11 @@ class AzureClientFactory:
 
                 # Instantiate the GraphServiceClient with the credential
                 self._graph_client = GraphServiceClient(credential)
-                logger.info("✅ Microsoft Graph client authenticated successfully.")
+                logger.info(
+                    "✅ Microsoft Graph client authenticated successfully.")
             except Exception as e:
-                logger.error("❌ GraphServiceClient authentication failed: %s", e)
+                logger.error(
+                    "❌ GraphServiceClient authentication failed: %s", e)
                 raise
         return self._graph_client
 
@@ -88,7 +92,8 @@ class AzureClientFactory:
             try:
                 account_url = os.getenv("AZURE_STORAGEACCOUNT_BLOBENDPOINT")
                 if not account_url:
-                    raise ValueError("Missing Azure Blob Storage endpoint URL.")
+                    raise ValueError(
+                        "Missing Azure Blob Storage endpoint URL.")
                 logger.info("Using account URL: %s", account_url)
 
                 if account_url.startswith("http://127.0.0.1:10000"):
@@ -101,15 +106,19 @@ class AzureClientFactory:
                         "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
                         "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
                     )
-                    logger.info("Using connection string for local Azurite storage.")
+                    logger.info(
+                        "Using connection string for local Azurite storage.")
                     self._blob_service_client = BlobServiceClient.from_connection_string(connection_string)
                 else:
                     # Ensure the account URL uses HTTPS
                     if not account_url.startswith("https://"):
-                        raise ValueError("Token credential is only supported with HTTPS.")
-                    logger.info("Using DefaultAzureCredential for authentication.")
+                        raise ValueError(
+                            "Token credential is only supported with HTTPS.")
+                    logger.info(
+                        "Using DefaultAzureCredential for authentication.")
                     # Return a BlobServiceClient instance
-                    self._blob_service_client = BlobServiceClient(account_url, credential=DefaultAzureCredential())
+                    self._blob_service_client = BlobServiceClient(
+                        account_url, credential=DefaultAzureCredential())
 
                 logger.info("✅ BlobServiceClient created successfully.")
             except Exception as e:
@@ -126,16 +135,22 @@ class AzureClientFactory:
                 azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
                 azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
                 api_version = os.getenv("OPENAI_API_VERSION")
-                api_key = os.getenv("AZURE_OPENAI_API_KEY")
 
-                if not all([azure_endpoint, azure_deployment, api_version, api_key]):
-                    raise ValueError("Missing Azure OpenAI credentials. Check environment variables.")
+                if not all([azure_endpoint, azure_deployment, api_version]):
+                    raise ValueError(
+                        "Missing Azure OpenAI credentials. Check environment variables.")
+
+                # Use DefaultAzureCredential to get the token
+                # This approach leverages Azure's managed identity to obtain a token securely
+                # This enhances operational security by avoiding the need to manage and rotate secrets
+                # on the Azure OpenAI account (compute) resource manually.
+                token = DefaultAzureCredential().get_token("https://cognitiveservices.azure.com/.default")
 
                 self._openai_client = AzureOpenAI(
                     azure_endpoint=azure_endpoint,
                     azure_deployment=azure_deployment,
                     api_version=api_version,
-                    api_key=api_key
+                    api_key=token.token  # Pass the obtained token to the AzureOpenAI client
                 )
                 logger.info("✅ Azure OpenAI client created successfully.")
             except Exception as e:
@@ -150,12 +165,15 @@ class AzureClientFactory:
         if self._o365_account is None:
             try:
                 if not all([TENANT_ID, CLIENT_ID, CLIENT_SECRET]):
-                    raise ValueError("Missing Azure AD credentials. Check environment variables.")
+                    raise ValueError(
+                        "Missing Azure AD credentials. Check environment variables.")
 
                 credentials = (CLIENT_ID, CLIENT_SECRET)
-                self._o365_account = Account(credentials, auth_flow_type="credentials", tenant_id=TENANT_ID)
+                self._o365_account = Account(
+                    credentials, auth_flow_type="credentials", tenant_id=TENANT_ID)
                 if not self._o365_account.authenticate():
-                    raise ClientAuthenticationError("O365 Account authentication failed.")
+                    raise ClientAuthenticationError(
+                        "O365 Account authentication failed.")
                 logger.info("✅ O365 Account authenticated successfully.")
             except Exception as e:
                 logger.error("❌ O365 Account authentication failed: %s", e)
@@ -177,12 +195,14 @@ class AzureClientFactory:
 
         try:
             blob_service_client = await self.get_blob_service_client()
-            blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+            blob_client = blob_service_client.get_blob_client(
+                container=container_name, blob=blob_name)
             blob_content = await blob_client.download_blob()
             content = await blob_content.readall()
             return content.decode('utf-8').strip()
         except ResourceNotFoundError:
-            logger.error("Blob not found: container=%s, blob=%s", container_name, blob_name)
+            logger.error("Blob not found: container=%s, blob=%s",
+                         container_name, blob_name)
         except ClientAuthenticationError:
             logger.error("Authentication error while accessing blob: container=%s, blob=%s",
                          container_name, blob_name)
@@ -192,4 +212,3 @@ class AzureClientFactory:
         except Exception as e:
             logger.error("Failed to download blob content: %s", e)
         return None
-
