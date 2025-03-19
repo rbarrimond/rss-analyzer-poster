@@ -173,3 +173,6 @@ o365_token.json
 # VS Code
 .vscode/
 *.code-workspace
+
+# Dev Requirements
+requirements-dev.txt
