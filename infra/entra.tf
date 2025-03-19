@@ -33,6 +33,11 @@ resource "azuread_application" "rss_feed_analyzer" {
       id   = "b633e1c5-b582-4048-a93e-9f11b44c7e96" # Mail.Send (Application)
       type = "Role"
     }
+
+    resource_access {
+      id   = "0c0bf378-bf22-4481-8f81-9e89a9b4960a" # Sites.Manage.All (Application)
+      type = "Role"
+    }
   }
 
   tags = [ var.resource_suffix ] # Tag the application for easy identification

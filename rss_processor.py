@@ -61,10 +61,12 @@ class RssProcessor:
         self.acf = AzureClientFactory.get_instance()
         self.azure_openai_client = None
         self.graph_service_client = None
+        self.o365_account = None
 
     async def initialize_clients(self):
         self.azure_openai_client = await self.acf.get_openai_client()
         self.graph_service_client = await self.acf.get_graph_client()
+        self.o365_account = await self.acf.get_o365_account()
 
     async def process_feeds(self, site_id: str = None, list_id: str = None, 
                             config_container_name: str = None, config_blob_name: str = None, 
