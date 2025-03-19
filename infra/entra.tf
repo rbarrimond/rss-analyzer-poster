@@ -60,3 +60,10 @@ resource "azuread_application_password" "rss_feed_secret" {
     ]
   }
 }
+
+# Retrieve the system managed service principal for the application in order to assign roles
+# to the Function App that will use this application
+resource "azuread_service_principal" "rss_feed_analyzer" {
+  client_id = azuread_application.rss_feed_analyzer.client_id
+  use_existing = true
+}

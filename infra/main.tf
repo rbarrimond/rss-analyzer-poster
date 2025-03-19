@@ -112,15 +112,10 @@ resource "azurerm_role_assignment" "cognitive_account_access" {
   scope                = data.azurerm_cognitive_account.main.id
 }
 
-# Assign Microsoft Graph API roles to the Function App
-resource "azurerm_role_assignment" "msgraph_site_readwrite_all" {
-  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
-  role_definition_name = "Sites.ReadWrite.All"
-  scope                = azuread_service_principal.msgraph.id
-}
-
-resource "azurerm_role_assignment" "msgraph_mail_send" {
-  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
-  role_definition_name = "Mail.Send"
-  scope                = azuread_service_principal.msgraph.id
+# Assign RSS Feed Analyzer-Poster roles to the Function App thus enabling
+# it to access Microsoft Graph API
+resource "azurerm_role_assignment" "rss_feed_analyzer_function_access" {
+  principal_id         = azuread_service_principal.rss_feed_analyzer.object_id
+  role_definition_name = "Contributor"
+  scope                = azurerm_linux_function_app.rss_analyzer_poster.id
 }
