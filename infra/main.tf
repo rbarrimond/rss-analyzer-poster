@@ -80,6 +80,12 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
     "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
     "AZURE_STORAGEACCOUNT_FILEENDPOINT"  = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
+    "AZURE_OPENAI_ENDPOINT"              = azurerm_cognitive_account.main.endpoint
+    "MODEL_SUMMARY"                      = azurerm_cognitive_deployment.gpt4o.name
+    "MODEL_LIGHT_SUMMARY"                = azurerm_cognitive_deployment.gpt4o_mini.name
+    "MODEL_RANKING"                      = azurerm_cognitive_deployment.gpt35_turbo.name
+    "MODEL_EMBEDDING_FAST"               = azurerm_cognitive_deployment.text_embedding3_small.name
+    "MODEL_EMBEDDING_DEEP"               = azurerm_cognitive_deployment.text_embedding3_large.name
     "RSSAP_TENANT_ID"                    = var.tenant_id
     "RSSAP_CLIENT_ID"                    = azuread_application.rss_feed_analyzer.client_id
     "RSSAP_CLIENT_SECRET"                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_secret.versionless_id})"
