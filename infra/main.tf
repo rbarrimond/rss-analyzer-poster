@@ -1,15 +1,44 @@
-# ===================================================================
-# Azure Client Configuration
-# Retrieves the current Azure client configuration for use in
-# resource management and deployment.
-# ===================================================================
+# =================================================================================================
+# RSS Analyzer Poster Infrastructure Configuration
+# =================================================================================================
+# 
+# Project: RSS Analyzer Poster
+# Description:
+# This Terraform configuration file defines the necessary Azure infrastructure to support the 
+# RSS Analyzer Poster application. The application is designed to fetch, analyze, and curate 
+# RSS feed content using AI-driven insights, then automate content posting to platforms like 
+# LinkedIn, Substack, and WordPress.
+#
+# Purpose:
+# - Automate the provisioning and management of Azure resources for the RSS Analyzer Poster.
+# - Ensure scalability, security, and cost-effectiveness by leveraging managed cloud services.
+# - Enable AI-powered content processing through seamless integration with Azure OpenAI and 
+#   Microsoft Graph API.
+# - Implement best practices in infrastructure as code (IaC), promoting consistency, 
+#   version control, and repeatability across environments.
+#
+# Infrastructure Components:
+# - Resource Group: A logical container for all Azure resources related to the project.
+# - Application Insights: Provides monitoring and observability for performance and health.
+# - Linux Function App: Hosts the serverless application that processes RSS feeds.
+# - Storage Account: Stores processed data, AI-generated insights, and metadata.
+# - Role Assignments: Grants necessary permissions for AI services, email notifications, 
+#   and SharePoint integration via Microsoft Graph API.
+#
+# Key Features:
+# - Scalability: Serverless compute with Azure Functions to optimize costs.
+# - Security: Uses Azure Key Vault for securing sensitive configurations.
+# - Observability: Integrated health checks and monitoring with Application Insights.
+# - Automation: AI-driven workflows for intelligent content curation and posting.
+#
+# Usage:
+# - Deploy using Terraform to provision and manage infrastructure efficiently.
+# - Modify variable inputs (variables.tf) to customize deployment based on environment needs.
+# - Follow the README.md documentation for setup, configuration, and maintenance.
+# =================================================================================================
+
 data "azurerm_client_config" "current" {}
 
-# ===================================================================
-# Azure Resource Group
-# Creates a resource group to contain all related Azure resources
-# for the RSS Analyzer Poster project.
-# ===================================================================
 resource "azurerm_resource_group" "rg" {
   name     = "rg${var.resource_suffix}"
   location = var.location
@@ -18,12 +47,6 @@ resource "azurerm_resource_group" "rg" {
   }
 }
 
-# ===================================================================
-# Azure Application Insights
-# Configures Application Insights for monitoring and logging of
-# Azure Functions and other resources. This provides insights into
-# application performance and usage.
-# ===================================================================
 resource "azurerm_application_insights" "app_insights" {
   name                = "appInsights${var.resource_suffix}"
   location            = azurerm_resource_group.rg.location
@@ -31,11 +54,6 @@ resource "azurerm_application_insights" "app_insights" {
   application_type    = "web"
 }
 
-# ===================================================================
-# Azure Linux Function App: RSS Analyzer Poster
-# Deploys a Linux-based Azure Function App for the RSS Analyzer
-# Poster project. Configures storage, service plan, and health checks.
-# ===================================================================
 resource "azurerm_linux_function_app" "rss_analyzer_poster" {
   name                = "rssAnalyzerPoster${var.resource_suffix}"
   resource_group_name = azurerm_resource_group.rg.name
@@ -63,14 +81,9 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "AZURE_STORAGEACCOUNT_TABLEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_table_endpoint
     "AZURE_STORAGEACCOUNT_QUEUEENDPOINT" = azurerm_storage_account.strg_storageaccount.primary_queue_endpoint
     "AZURE_STORAGEACCOUNT_FILEENDPOINT"  = azurerm_storage_account.strg_storageaccount.primary_file_endpoint
-    "RSSAP_CLIENT_ID"                    = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_id.versionless_id})"
+    "RSSAP_TENANT_ID"                    = var.tenant_id
+    "RSSAP_CLIENT_ID"                    = azuread_application.rss_feed_analyzer.client_id
     "RSSAP_CLIENT_SECRET"                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_secret.versionless_id})"
-    "RSSAP_TENANT_ID"                    = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_tenant_id.versionless_id})"
-    "AZURE_OPENAI_API_KEY"               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_api_key.versionless_id})"
-    "AZURE_OPENAI_MODEL"                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_model.versionless_id})"
-    "AZURE_OPENAI_DEPLOYMENT"            = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_deployment.versionless_id})"
-    "AZURE_OPENAI_ENDPOINT"              = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.azure_openai_endpoint.versionless_id})"
-    "OPENAI_API_VERSION"                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_api_version.versionless_id})"
   }
 
   identity {
@@ -91,4 +104,22 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
       app_settings["XDG_CACHE_HOME"],
     ]
   }
+}
+
+resource "azurerm_role_assignment" "cognitive_account_access" {
+  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
+  role_definition_name = "Cognitive Services OpenAI User"
+  scope                = data.azurerm_cognitive_account.cognitive_account.id
+}
+
+resource "azurerm_role_assignment" "graph_api_mail_send" {
+  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
+  role_definition_name = "Mail.Send"
+  scope                = "https://graph.microsoft.com/"
+}
+
+resource "azurerm_role_assignment" "graph_api_sites_readwrite" {
+  principal_id         = azurerm_linux_function_app.rss_analyzer_poster.identity[0].principal_id
+  role_definition_name = "Sites.ReadWrite.All"
+  scope                = "https://graph.microsoft.com/"
 }

@@ -37,6 +37,11 @@ resource "azurerm_key_vault" "kv" {
   }
 }
 
+data "azurerm_cognitive_account" "main" {
+  name                = "cognitiveAccount${var.resource_suffix}"
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
 # Key Vault access policy for the Function App's system-assigned managed identity
 resource "azurerm_key_vault_access_policy" "function_app_policy" {
   key_vault_id = azurerm_key_vault.kv.id
@@ -61,51 +66,19 @@ resource "azurerm_key_vault_secret" "app_insights_connection_string" {
   value        = azurerm_application_insights.app_insights.connection_string
   key_vault_id = azurerm_key_vault.kv.id
 }
-
-resource "azurerm_key_vault_secret" "rssap_tenant_id" {
-  name         = "RssapTenantId"
-  value        = var.tenant_id
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-resource "azurerm_key_vault_secret" "rssap_client_id" {
-  name         = "RssapClientId"
-  value        = azuread_application.rss_feed_analyzer.client_id
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
 resource "azurerm_key_vault_secret" "rssap_client_secret" {
   name         = "RssapClientSecret"
   value        = azuread_application_password.rss_feed_secret.value
   key_vault_id = azurerm_key_vault.kv.id
 }
-
-resource "azurerm_key_vault_secret" "azure_openai_api_key" {
-  name         = "AzureOpenAIAPIKey"
-  value        = var.azure_openai_api_key
+resource "azurerm_key_vault_secret" "azure_openai_primary_key" {
+  name         = "AzureOpenAIPrimaryKey"
+  value        = data.azurerm_cognitive_account.main.primary_access_key
   key_vault_id = azurerm_key_vault.kv.id
 }
 
-resource "azurerm_key_vault_secret" "azure_openai_model" {
-  name         = "AzureOpenAIModel"
-  value        = var.azure_openai_model
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-resource "azurerm_key_vault_secret" "azure_openai_deployment" {
-  name         = "AzureOpenAIDeployment"
-  value        = var.azure_openai_deployment
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-resource "azurerm_key_vault_secret" "azure_openai_endpoint" {
-  name         = "AzureOpenAIEndpoint"
-  value        = var.azure_openai_endpoint
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-resource "azurerm_key_vault_secret" "openai_api_version" {
-  name         = "OpenAIApiVersion"
-  value        = var.openai_api_version
+resource "azurerm_key_vault_secret" "azure_openai_secondary_key" {
+  name         = "AzureOpenAISecondaryKey"
+  value        = data.azurerm_cognitive_account.main.secondary_access_key
   key_vault_id = azurerm_key_vault.kv.id
 }
