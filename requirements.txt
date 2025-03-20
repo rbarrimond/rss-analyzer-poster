@@ -18,3 +18,5 @@ azure-keyvault-secrets
 pandas
 # Library for O365 API interaction
 O365
+# Library for Azure Table Storage interaction
+azure-data-tables
