@@ -104,8 +104,9 @@ class RssProcessor:
         """
         # Configure this object with the necessary clients and parameters
         await self.initialize_clients()
-        site_id, list_id, config_container_name, config_blob_name = self._get_config_params(
-            site_id, list_id, config_container_name, config_blob_name)
+        site_id, list_id, config_container_name, config_blob_name = self._get_config_params(site_id, list_id, 
+                                                                                            config_container_name, 
+                                                                                            config_blob_name)
         if not all([site_id, list_id, config_container_name, config_blob_name]):
             raise ValueError("Missing required parameters for reading and storing feeds.")
 
