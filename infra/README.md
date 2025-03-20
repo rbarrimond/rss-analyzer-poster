@@ -37,6 +37,17 @@ This repository contains Terraform Infrastructure as Code (IaC) for deploying an
   - **Function App Name**: Outputs the name of the RSS Analyzer Poster Function App.
   - **Function App Default Hostname**: Outputs the default hostname for accessing the function app.
   - **Function App URL**: Outputs the URL for direct access to the function app.
+  - **Main AI Account Endpoint**: Outputs the endpoint for the main AI account.
+  - **GPT-35 Turbo Deployment Name**: Outputs the name of the GPT-35 Turbo deployment.
+  - **GPT-35 Turbo Deployment Version**: Outputs the version of the GPT-35 Turbo deployment.
+  - **GPT-4o Deployment Name**: Outputs the name of the GPT-4o deployment.
+  - **GPT-4o Deployment Version**: Outputs the version of the GPT-4o deployment.
+  - **GPT-4o Mini Deployment Name**: Outputs the name of the GPT-4o Mini deployment.
+  - **GPT-4o Mini Deployment Version**: Outputs the version of the GPT-4o Mini deployment.
+  - **Text Embedding 3 Small Deployment Name**: Outputs the name of the Text Embedding 3 Small deployment.
+  - **Text Embedding 3 Small Deployment Version**: Outputs the version of the Text Embedding 3 Small deployment.
+  - **Text Embedding 3 Large Deployment Name**: Outputs the name of the Text Embedding 3 Large deployment.
+  - **Text Embedding 3 Large Deployment Version**: Outputs the version of the Text Embedding 3 Large deployment.
 
 ## Purpose
 
@@ -54,5 +65,6 @@ Running this Terraform configuration will provision the following Azure resource
 - Storage accounts for general-purpose use and function deployment.
 - Configured blob containers for storing configuration files.
 - System-assigned managed identities and Key Vault references.
+- Cognitive services for AI-driven insights and processing.
 
 This setup provides a scalable and secure environment for the RSS Analyzer Poster project, enabling efficient deployment and management of resources on Azure.
