@@ -102,65 +102,62 @@ async def fetch_processed_status(graph_service_client, site_id: str, list_id: st
         logger.warning('Failed to fetch items from Microsoft List: %s', e)
         return None
 
-def create_output_df(fp_df: pd.DataFrame) -> pd.DataFrame:
+def create_output_df(input_df: pd.DataFrame) -> pd.DataFrame:
     """
     Creates an output DataFrame with predefined columns from the input DataFrame.
 
-    :param fp_df: Input DataFrame containing RSS feed entries from feedparser.
+    :param input_df: Input DataFrame containing RSS feed entries from feedparser.
     :return: Output DataFrame with specific columns for storing in Microsoft Lists.
     """
-    required_columns = ['title', 'link']
-    missing_columns = [
-        col for col in required_columns if col not in fp_df.columns]
+    if input_df.empty:
+        logger.warning("Received an empty DataFrame. Returning an empty output DataFrame.")
+        return pd.DataFrame()
 
+    required_columns = ["title", "link"]
+    missing_columns = [col for col in required_columns if col not in input_df.columns]
     if missing_columns:
-        logger.error(
-            'Missing required columns in input DataFrame: %s', missing_columns)
+        logger.error("Missing required columns in input DataFrame: %s", missing_columns)
         return pd.DataFrame()  # Return an empty DataFrame if required columns are missing
 
-    # Define all columns up front
-    column_defaults = {
+    # Centralized default values
+    COLUMN_DEFAULTS = {
         "Title": "Untitled",
         "URL": "",
         "Summary": "No Summary Available",
-        "Entry_ID": fp_df.index.astype(str),
+        "Entry_ID": input_df.index.astype(str).copy() if not input_df.empty else [],
         "Published_Date": "1970-01-01T00:00:00Z",
         "Full_Content": "No Content Available",
-        # Multi-select field, needs a list per row
-        "Categories": [[]] * len(fp_df),
+        "Categories": [[]],  # List-based fields initialized properly
         "Author": "Unknown Author",
         "Keywords": "",
         "Sentiment": "Neutral",
         "Readability_Score": 0.0,
         "Engagement_Score": 0,
         "Processed": False,
-        # Multi-choice field, should be list per row
-        "Engagement_Type": [[]] * len(fp_df),
-        "Response_Received": False
+        "Engagement_Type": [[]],
+        "Response_Received": False,
     }
 
-    # Create DataFrame with all expected columns
-    output_df = pd.DataFrame(column_defaults, index=fp_df.index)
+    # Create DataFrame with default values
+    output_df = pd.DataFrame(COLUMN_DEFAULTS).iloc[:len(input_df)].copy()
 
-    # Override columns with actual data from `fp_df` (if available)
-    output_df["Title"] = fp_df["title"]
-    output_df["URL"] = fp_df["link"]
-    output_df["Summary"] = fp_df["summary"] if "summary" in fp_df.columns else output_df["Summary"]
-    output_df["Author"] = fp_df["author"] if "author" in fp_df.columns else output_df["Author"]
-    output_df["Published_Date"] = fp_df["published"] if "published" in fp_df.columns else output_df["Published_Date"]
+    # Override with actual data where available
+    for col in ["Title", "URL", "Summary", "Author", "Published_Date"]:
+        if col.lower() in input_df.columns:
+            output_df[col] = input_df[col.lower()].copy()
 
-    # Extract content safely
-    if "content" in fp_df.columns:
-        output_df["Full_Content"] = fp_df["content"].apply(
-            lambda x: x[0]["value"] if isinstance(
-                x, list) and x else "No Content Available"
-        )
+    # Extract full content safely
+    if "content" in input_df.columns:
+        output_df["Full_Content"] = input_df["content"].apply(
+            lambda x: x[0]["value"] if isinstance(x, list) and len(x) > 0 and "value" in x[0]
+            else x if isinstance(x, str) else "No Content Available"
+        ).copy()
 
     # Extract categories safely
-    if "tags" in fp_df.columns:
-        output_df["Categories"] = fp_df["tags"].apply(
+    if "tags" in input_df.columns:
+        output_df["Categories"] = input_df["tags"].apply(
             lambda x: [tag["term"] for tag in x] if isinstance(x, list) else []
-        )
+        ).copy()
 
     return output_df
 

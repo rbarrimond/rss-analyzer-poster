@@ -2,7 +2,7 @@
 This module provides utility classes for creating and managing Azure service clients.
 
 Classes:
-    AzureClientFactory: A singleton factory class responsible for creating and managing Azure service clients.
+    AzureClientFactory: A singleton factory class for creating and managing Azure service clients.
     BlobStorageTokenBackend: A class for handling token storage in Azure Blob Storage.
 
 Functions:
@@ -43,9 +43,7 @@ logger = configure_logging(__name__)
 
 class AzureClientFactory:
     """
-    AzureClientFactory is responsible for creating and managing Azure service clients.
-
-    This class implements the singleton pattern to ensure only one instance of the factory exists.
+    A singleton factory class for creating and managing Azure service clients.
     """
 
     _instance = None
@@ -66,12 +64,6 @@ class AzureClientFactory:
     def get_instance(cls):
         """
         Returns a singleton instance of the class.
-
-        This method ensures that only one instance of the class is created.
-        If the instance does not exist, it creates one in a thread-safe manner.
-
-        Returns:
-            cls: The singleton instance of the class.
         """
         if cls._instance is None:
             with cls._lock:
@@ -100,8 +92,7 @@ class AzureClientFactory:
 
     def download_blob_content(self, container_name: str, blob_name: str) -> Optional[str]:
         """
-        Downloads the content of a blob from Azure Blob Storage, decodes it to UTF-8,
-        and returns it as a stripped string.
+        Downloads the content of a blob from Azure Blob Storage.
 
         :param container_name: The name of the container where the blob is stored.
         :param blob_name: The name of the blob to download.
@@ -142,7 +133,7 @@ class AzureClientFactory:
 
     def get_openai_clients(self) -> Dict[str, ChatCompletionsClient]:
         """
-        Returns an authenticated Azure OpenAI client.
+        Returns authenticated Azure OpenAI clients.
         """
         if self._openai_clients is None:
             models = {
@@ -219,12 +210,13 @@ class AzureClientFactory:
 # TODO: Update for use with Azure Functions and fix AI draft
 class BlobStorageTokenBackend(BaseTokenBackend):
     """
-    BlobStorageTokenBackend is responsible for handling token storage in Azure Blob Storage.
-
-    This class provides methods to load, save, delete, and check the existence of tokens in Azure Blob Storage.
+    A class for handling token storage in Azure Blob Storage.
     """
 
     def __init__(self, container_name, blob_name, connection_string):
+        """
+        Initializes the BlobStorageTokenBackend with container and blob details.
+        """
         super().__init__()
         self.container_name = container_name
         self.blob_name = blob_name
