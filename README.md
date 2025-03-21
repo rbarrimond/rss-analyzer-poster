@@ -4,6 +4,12 @@
 
 The RSS Analyzer Poster project is designed to analyze RSS feeds, summarize their content, and provide engagement scores. This project leverages Azure Functions for serverless execution and Terraform for infrastructure management.
 
+### Key Components
+
+- **RssIngestionService**: Responsible for processing and analyzing RSS feeds.
+- **Azure Functions**: Serverless execution of the RSS feed processing.
+- **Terraform**: Infrastructure management.
+
 ## Repository Structure
 
 ```text
@@ -32,13 +38,13 @@ rss-analyzer-poster/
 ├── function_app.py
 ├── host.json
 ├── requirements.txt
-└── rss_processor.py
+└── rss_ingestion_service.py
 ```
 
 ## Key Files and Directories
 
 - **function_app.py**: Main entry point for the Azure Function App.
-- **rss_processor.py**: Contains the logic for processing RSS feeds.
+- **rss_ingestion_service.py**: Contains the logic for processing RSS feeds.
 - **infra/**: Contains Terraform configuration files for provisioning Azure resources.
 - **samples/**: Contains sample data for testing and documentation.
 - **utils/**: Contains utility modules for the application.

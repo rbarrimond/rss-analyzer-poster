@@ -1,5 +1,5 @@
 """
-rss_processor.py
+rss_ingestion_service.py
 
 This module defines functions for processing and analyzing RSS feeds.
 

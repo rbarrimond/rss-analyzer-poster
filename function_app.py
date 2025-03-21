@@ -35,6 +35,7 @@ from azure.functions import HttpRequest, HttpResponse
 
 from rss_processor import RssProcessor
 from utils.logger import configure_logging, update_handler_level
+from rss_ingestion_service import RssIngestionService
 
 # Configure logging
 logger = configure_logging(__name__)
@@ -42,26 +43,24 @@ logger = configure_logging(__name__)
 # Create the Azure Functions application instance
 app = func.FunctionApp()
 
-# Create an asyncio lock object
-lock = asyncio.Lock()
-
 @app.function_name(name="rssFeedProcessor")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
-async def rss_feed_processor(myTimer: func.TimerRequest) -> None:
+def rss_feed_processor(myTimer: func.TimerRequest) -> None:
     """
     Scheduled Azure Function (runs daily at 6 AM UTC):
-    Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
-    and analyzes newly stored content with Azure OpenAI, generating summaries and scores.
+    Fetches RSS feeds from configured sources and stores them in Microsoft Lists.
 
     :param myTimer: The timer request object that triggers the function.
     """
     logger.info('RSS Feed Processor triggered.')
-    async with lock:  # Ensure atomic access
-        await RssProcessor().read_and_store_feeds()
+    try:
+        RssProcessor().read_and_store_feeds()
+    except Exception as e:
+        logger.error("Error processing RSS feeds: %s", e)
 
 @app.function_name(name="rssFeedProcessorHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-async def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
+def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
@@ -76,32 +75,21 @@ async def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
     except ValueError:
         return func.HttpResponse("Invalid JSON body.", status_code=400)
 
-    site_id = req_body.get('site_id', os.getenv('SITE_ID'))
-    list_id = req_body.get('list_id', os.getenv('LIST_ID'))
     config_container_name = req_body.get(
         'config_container_name', os.getenv('CONFIG_CONTAINER_NAME'))
     config_blob_name = req_body.get(
         'config_blob_name', os.getenv('CONFIG_BLOB_NAME'))
-    system_container_name = req_body.get(
-        'system_container_name', os.getenv('SYSTEM_CONTAINER_NAME'))
-    system_blob_name = req_body.get(
-        'system_blob_name', os.getenv('SYSTEM_BLOB_NAME'))
-    user_container_name = req_body.get(
-        'user_container_name', os.getenv('USER_CONTAINER_NAME'))
-    user_blob_name = req_body.get(
-        'user_blob_name', os.getenv('USER_BLOB_NAME'))
 
-    async with lock:  # Ensure atomic access
-        await RssProcessor().process_feeds(site_id, list_id,
-                                           config_container_name, config_blob_name,
-                                           system_container_name, system_blob_name,
-                                           user_container_name, user_blob_name)
-
-    return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
+    try:
+        RssIngestionService().read_and_store_feeds(config_container_name, config_blob_name)
+        return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
+    except Exception as e:
+        logger.error(f"Error processing RSS feeds: {e}")
+        return func.HttpResponse(f"Error processing RSS feeds: {e}", status_code=500)
 
 @app.function_name(name="rssSummarizerHttp")
 @app.route(route="summarize", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-async def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
+def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Summarizes and updates existing RSS articles stored in Microsoft Lists.
@@ -110,15 +98,18 @@ async def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     :return: HTTP response indicating the result of the operation.
     """
     logger.info('RSS Summarizer HTTP triggered.')
-    async with lock:  # Ensure atomic access
-        # Add the logic to summarize and update existing RSS articles
-        pass
-
-    return func.HttpResponse("RSS articles summarized successfully.", status_code=200)
+    try:
+        with lock:  # Ensure atomic access
+            # Add the logic to summarize and update existing RSS articles
+            pass
+        return func.HttpResponse("RSS articles summarized successfully.", status_code=200)
+    except Exception as e:
+        logger.error(f"Error summarizing RSS articles: {e}")
+        return func.HttpResponse(f"Error summarizing RSS articles: {e}", status_code=500)
 
 @app.function_name(name="rssPosterHttp")
 @app.route(route="collect", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-async def rss_poster_http(req: HttpRequest) -> HttpResponse:
+def rss_poster_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Fetches RSS feeds from configured sources and stores them in Microsoft Lists.
@@ -127,15 +118,18 @@ async def rss_poster_http(req: HttpRequest) -> HttpResponse:
     :return: HTTP response indicating the result of the operation.
     """
     logger.info('RSS Poster HTTP triggered.')
-    async with lock:  # Ensure atomic access
-        # Add the logic to fetch RSS feeds and store them in Microsoft Lists
-        pass
-
-    return func.HttpResponse("RSS feeds collected and stored successfully.", status_code=200)
+    try:
+        with lock:  # Ensure atomic access
+            # Add the logic to fetch RSS feeds and store them in Microsoft Lists
+            pass
+        return func.HttpResponse("RSS feeds collected and stored successfully.", status_code=200)
+    except Exception as e:
+        logger.error(f"Error collecting RSS feeds: {e}")
+        return func.HttpResponse(f"Error collecting RSS feeds: {e}", status_code=500)
 
 @app.function_name(name="updateLogLevel")
 @app.route(route="updateLogLevel", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-async def update_log_level(req: HttpRequest) -> HttpResponse:
+def update_log_level(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
     Updates the log level of the logger based on the request parameter.
