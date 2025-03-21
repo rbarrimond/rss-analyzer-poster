@@ -1,0 +1,199 @@
+# This GitHub Actions workflow automates the execution of Terraform commands (plan, apply, destroy)
+# based on manual triggers. It also sends notifications to Microsoft Teams and posts comments on PRs.
+
+name: Terraform Workflow
+
+on:
+  workflow_dispatch: # Manual trigger
+    inputs:
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+permissions:
+  contents: read
+  pull-requests: write # Needed for PR commenting
+
+jobs:
+  terraform:
+    name: Terraform ${{ github.event.inputs.action }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="access_key=${{ secrets.AZURE_STORAGE_ACCESS_KEY }}"
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Terraform Plan
+        if: github.event.inputs.action == 'plan'
+        id: plan
+        run: terraform plan -out=tfplan -no-color | tee plan_output.txt
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Post Terraform Plan as PR Comment
+        if: github.event.inputs.action == 'plan'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('plan_output.txt', 'utf8');
+            const comment = `### Terraform Plan Result\n\`\`\`hcl\n${planOutput}\n\`\`\``;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Send Teams Notification - Plan
+        if: github.event.inputs.action == 'plan'
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0078D7",
+            "title": "Terraform Plan Completed",
+            "text": "**Terraform Plan Execution Completed**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Terraform",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" },
+                { "name": "Terraform Plan", "value": "Completed Successfully ✅" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      - name: Auto-Approve Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        uses: hmarr/auto-approve-action@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        run: terraform apply -auto-approve tfplan
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Send Teams Notification - Apply
+        if: github.event.inputs.action == 'apply'
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0078D7",
+            "title": "Terraform Apply Completed",
+            "text": "**Terraform Apply Execution Completed**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Terraform",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" },
+                { "name": "Terraform Apply", "value": "Changes Applied Successfully ✅" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+  terraform-destroy:
+    name: Terraform Destroy
+    if: github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Send Teams Notification - Destroy Starting
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "FF0000",
+            "title": "Terraform Destroy Started",
+            "text": "**Destroying Infrastructure on Request**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Terraform",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Send Teams Notification - Destroy Completed
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "FF0000",
+            "title": "Terraform Destroy Completed",
+            "text": "**Terraform Destroy Execution Completed**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Terraform",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" },
+                { "name": "Terraform Destroy", "value": "Resources Deleted ✅" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}

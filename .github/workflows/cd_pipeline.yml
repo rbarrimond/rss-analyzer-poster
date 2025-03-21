@@ -1,0 +1,161 @@
+# CD Pipeline for Granulytix IQ
+
+# This file defines a GitHub Actions workflow for the Continuous Deployment (CD) pipeline.
+# The CD pipeline includes steps for checking out the code, setting up Terraform, planning and applying Terraform changes,
+# downloading build artifacts from the CI pipeline, and deploying the application to Azure.
+
+# Main Components:
+# - Trigger: The workflow is triggered on push events to the main branch.
+# - Jobs:
+#   - terraform: Initializes and applies Terraform changes.
+#   - deploy: Downloads build artifacts and deploys the application to Azure.
+
+# Workflow Trigger:
+# - push: Triggered on push events to the main branch.
+
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ "null" ]  # Trigger the workflow on push events to the main branch
+
+jobs:
+  terraform:
+    name: Terraform Plan and Apply
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3  # Check out the repository code
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3  # Set up the Terraform environment
+        with:
+          terraform_version: 1.7.0  # Specify the Terraform version to use
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="access_key=${{ secrets.AZURE_STORAGE_ACCESS_KEY }}"
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -out=tfplan -no-color | tee plan_output.txt
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Send Teams Notification - Plan
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0078D7",
+            "title": "Terraform Plan Completed",
+            "text": "**Terraform Plan Execution Completed**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Terraform",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" },
+                { "name": "Terraform Plan", "value": "Completed Successfully ✅" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      - name: Terraform Apply
+        if: success()
+        run: terraform apply -auto-approve tfplan
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Send Teams Notification - Apply
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0078D7",
+            "title": "Terraform Apply Completed",
+            "text": "**Terraform Apply Execution Completed**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Terraform",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" },
+                { "name": "Terraform Apply", "value": "Changes Applied Successfully ✅" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+    needs: terraform  # Ensure this job runs after the terraform job
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: app
+          path: ./app.zip
+
+      - name: Send Teams Notification - Deploy Starting
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0078D7",
+            "title": "Deployment Started",
+            "text": "**Deploying Application to Azure**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Deploy",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      - name: Deploy to Azure
+        run: |
+          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+          az functionapp deployment source config-zip -g ${{ secrets.AZURE_RESOURCE_GROUP }} -n ${{ secrets.AZURE_FUNCTION_APP }} --src-path ./app.zip
+
+      - name: Send Teams Notification - Deploy Completed
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d '{
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "0078D7",
+            "title": "Deployment Completed",
+            "text": "**Application Deployment Completed**",
+            "sections": [{
+              "activityTitle": "GitHub Actions - Deploy",
+              "facts": [
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Committer", "value": "${{ github.actor }}" },
+                { "name": "Deployment", "value": "Completed Successfully ✅" }
+              ]
+            }]
+          }' \
+          ${{ secrets.TEAMS_WEBHOOK_URL }}

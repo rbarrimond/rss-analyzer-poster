@@ -6,9 +6,10 @@ The RSS Analyzer Poster project is designed to analyze RSS feeds, summarize thei
 
 ### Key Components
 
-- **RssIngestionService**: Responsible for processing and analyzing RSS feeds.
+- **RssIngestionService**: Responsible for processing and analyzing RSS feeds, enriching them with AI, and storing the results in Azure Table Storage.
 - **Azure Functions**: Serverless execution of the RSS feed processing.
 - **Terraform**: Infrastructure management.
+- **GitHub Actions**: CI/CD pipeline for automated testing and deployment.
 
 ## Repository Structure
 
@@ -16,15 +17,19 @@ The RSS Analyzer Poster project is designed to analyze RSS feeds, summarize thei
 rss-analyzer-poster/
 ├── .github/
 │   └── workflows/
-│       └── main_rssanalyzerposterrssai01.yml
+│       ├── terraform.yml
+│       ├── ci_pipeline.yml
+│       └── cd_pipeline.yml
 ├── infra/
 │   ├── appserviceplan.tf
 │   ├── entra.tf
 │   ├── keyvault.tf
 │   ├── main.tf
+│   ├── openai.tf
 │   ├── outputs.tf
 │   ├── providers.tf
-│   └── storageaccounts.tf
+│   ├── storageaccounts.tf
+│   └── variables.tf
 ├── samples/
 │   ├── rss_feed_engagement_sample.csv
 │   └── rss_feed_engagement_with_content.csv
@@ -68,12 +73,16 @@ The `infra` directory contains Terraform configuration files for provisioning th
 - **providers.tf**: Specifies the necessary providers for resource management.
 - **storageaccounts.tf**: Configures storage solutions for the application.
 - **outputs.tf**: Provides essential information about the deployed resources.
+- **variables.tf**: Defines variables used in the Terraform configuration.
+- **versions.tf**: Specifies the required Terraform version and provider versions.
 
 ## GitHub Actions
 
 The `.github/workflows` directory contains the CI/CD pipeline configuration:
 
-- **main_rssanalyzerposterrssai01.yml**: Defines the workflow for building, testing, and deploying the Azure Function App.
+- **terraform.yml**: Automates the execution of Terraform commands (plan, apply, destroy).
+- **ci_pipeline.yml**: Defines the CI pipeline for building, testing, and uploading build artifacts.
+- **cd_pipeline.yml**: Defines the CD pipeline for deploying the application to Azure.
 
 ## Usage
 
@@ -97,7 +106,7 @@ The `.github/workflows` directory contains the CI/CD pipeline configuration:
     ```
 
 4. **Deploy the application**:
-    The deployment is handled by the GitHub Actions workflow defined in `.github/workflows/main_rssanalyzerposterrssai01.yml`.
+    The deployment is handled by the GitHub Actions workflow defined in `.github/workflows/main.yml`.
 
 ## License
 

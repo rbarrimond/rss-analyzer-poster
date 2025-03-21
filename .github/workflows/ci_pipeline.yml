@@ -1,0 +1,137 @@
+# CI Pipeline for Granulytix IQ
+
+# This file defines a GitHub Actions workflow for the Continuous Integration (CI) pipeline.
+# The CI pipeline includes steps for checking out the code, setting up Terraform, planning and applying Terraform changes,
+# building the application, running tests, and uploading build artifacts.
+
+# Main Components:
+# - Trigger: The workflow is triggered on push and pull request events to the main branch.
+# - Jobs:
+#   - terraform: Initializes and applies Terraform changes.
+#   - build: Builds the application, runs tests, and uploads build artifacts.
+
+# Workflow Trigger:
+# - push: Triggered on push events to the main branch.
+# - pull_request: Triggered on pull request events targeting the main branch.
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "null" ]  # Trigger the workflow on push events to the main branch
+  pull_request:
+    branches: [ "null" ]  # Trigger the workflow on pull request events targeting the main branch
+
+jobs:
+  terraform:
+    name: Terraform Plan and Apply
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3  # Check out the repository code
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3  # Set up the Terraform environment
+        with:
+          terraform_version: 1.7.0  # Specify the Terraform version to use
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="access_key=${{ secrets.AZURE_STORAGE_ACCESS_KEY }}"
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -out=tfplan -no-color | tee plan_output.txt
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Terraform Apply
+        if: success()
+        run: terraform apply -auto-approve tfplan
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Send Teams Notification
+        if: success()
+        run: |
+          curl -H 'Content-Type: application/json' -d '{
+            "title": "CI Pipeline Notification",
+            "text": "Terraform Apply completed successfully.",
+            "themeColor": "0076D7",
+            "sections": [{
+              "activityTitle": "Terraform Apply",
+              "activitySubtitle": "Terraform changes have been applied successfully.",
+              "facts": [
+                {"name": "Repository", "value": "${{ github.repository }}"},
+                {"name": "Branch", "value": "${{ github.ref }}"},
+                {"name": "Commit", "value": "${{ github.sha }}"}
+              ]
+            }]
+          }' ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+    needs: terraform  # Ensure this job runs after the terraform job
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3  # Check out the repository code
+
+      - name: Set up Python
+        uses: actions/setup-python@v4  # Set up the Python environment
+        with:
+          python-version: "3.9"  # Specify the Python version to use
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip  # Upgrade pip to the latest version
+          pip install -r requirements.txt  # Install the dependencies from requirements.txt
+
+      - name: Run tests
+        run: |
+          pytest  # Run the tests using pytest
+
+      - name: Send Teams Notification
+        if: success()
+        run: |
+          curl -H 'Content-Type: application/json' -d '{
+            "title": "CI Pipeline Notification",
+            "text": "Tests completed successfully.",
+            "themeColor": "0076D7",
+            "sections": [{
+              "activityTitle": "Test Results",
+              "activitySubtitle": "All tests have passed successfully.",
+              "facts": [
+                {"name": "Repository", "value": "${{ github.repository }}"},
+                {"name": "Branch", "value": "${{ github.ref }}"},
+                {"name": "Commit", "value": "${{ github.sha }}"}
+              ]
+            }]
+          }' ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      - name: Package application
+        run: |
+          zip -r app.zip .  # Package the application into a zip file
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: app
+          path: app.zip
