@@ -20,3 +20,7 @@ pandas
 O365
 # Library for Azure Table Storage interaction
 azure-data-tables
+# Library for fast non-cryptographic hashing
+xxhash
+# Library for Azure AI Inference
+azure-ai-inference
