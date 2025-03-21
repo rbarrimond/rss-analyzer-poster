@@ -5,8 +5,8 @@ This module defines functions for processing and analyzing RSS feeds.
 
 Key Functions:
 1. download_blob_content - Downloads the content of a blob from Azure Blob Storage and returns it as a string.
-2. process_and_store_feeds - Processes RSS feeds from a configuration file stored in Azure Blob Storage 
-   and stores the entries in Microsoft Lists.
+2. read_and_store_feeds - Processes RSS feeds from a configuration file stored in Azure Blob Storage, enriches them with AI, 
+   and stores the entries in Azure Table Storage.
 3. analyze_and_update_recent_articles - Analyzes recent articles from Microsoft Lists, summarizes them 
    using Azure OpenAI, and updates the list with the summaries and engagement scores.
 
@@ -45,7 +45,7 @@ class RssIngestionService:
 
     Key Responsibilities:
     - Downloading and parsing RSS feed content from Azure Blob Storage.
-    - Storing parsed RSS feed entries into Microsoft Lists.
+    - Storing parsed RSS feed entries into Azure Table Storage.
     - Analyzing recent articles from Microsoft Lists using Azure OpenAI.
     - Updating Microsoft Lists with summaries and engagement scores.
 
