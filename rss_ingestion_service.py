@@ -34,12 +34,13 @@ import xxhash
 from azure.ai.inference import ChatCompletionsClient
 
 from utils.azure_clients import AzureClientFactory
-from utils.logger import LoggerFactory
-from utils.decorators import log_and_raise_error
+from utils.logger_factory import LoggerFactory
+from utils.decorators import log_and_raise_error, log_execution_time, trace_class
 
 # Configure logging using LoggerFactory
 logger = LoggerFactory.get_logger(__name__)
 
+@trace_class
 class RssIngestionService:
     """
     RssIngestionService is responsible for processing and analyzing RSS feeds.
@@ -79,36 +80,47 @@ class RssIngestionService:
         openai_client = self.acf.get_openai_clients()["MODEL_RANKING"]
         feed_urls = self._retrieve_feed_urls(config_container_name, config_blob_name)
         
-        # Process feeds
-
+        logger.info("Retrieving feeds from URLs: %s", feed_urls)
         for feed_url in feed_urls:
-            logger.info('Processing feed: %s', feed_url)
-            try:
-                feed = feedparser.parse(feed_url)
-                if feed.entries:
-                    fp_df = pd.DataFrame(feed.entries)
-                    if 'id' in fp_df.columns:
-                        fp_df.set_index('id', inplace=True)
-                        fp_enriched_df = self._create_feed_output_df(fp_df)
+            fp_enriched_df = self._retrieve_feed(feed_url)
 
-                        # AI Enrichment
-                        try:
-                            fp_enriched_df["Summary"] = fp_enriched_df["Summary"].apply(lambda text: self._improve_summary(text, openai_client))
-                            fp_enriched_df[["Sentiment", "Sentiment_Score"]] = fp_enriched_df["Summary"].apply(lambda text: pd.Series(self._analyze_sentiment(text, openai_client)))
-                            fp_enriched_df["readability"] = fp_enriched_df["Summary"].apply(lambda text: self._compute_readability(text))
-                            fp_enriched_df["embedding"] = fp_enriched_df["Summary"].apply(lambda text: self._generate_embedding(text, openai_client))
-                            logger.info("Successfully enriched entries for feed: %s", feed_url)
-                        except Exception as e:
-                            logger.error("Failed to enrich entries: %s", e)
 
-                        # Store in Azure Table Storage
-                        self._store_in_table_storage(table_client, fp_enriched_df)
+        # AI Enrichment
+        # try:
+        #     fp_enriched_df["Summary"] = fp_enriched_df["Summary"].apply(lambda text: self._improve_summary(text, openai_client))
+        #     fp_enriched_df[["Sentiment", "Sentiment_Score"]] = fp_enriched_df["Summary"].apply(lambda text: pd.Series(self._analyze_sentiment(text, openai_client)))
+        #     fp_enriched_df["readability"] = fp_enriched_df["Summary"].apply(lambda text: self._compute_readability(text))
+        #     fp_enriched_df["embedding"] = fp_enriched_df["Summary"].apply(lambda text: self._generate_embedding(text, openai_client))
+        #     logger.info("Successfully enriched entries for feed: %s", feed_url)
+        # except Exception as e:
+        #     logger.error("Failed to enrich entries: %s", e)
 
-                    else:
-                        logger.warning('Feed entries do not contain an "id" field: %s', feed_url)
-            except Exception as e:
-                logger.warning('Failed to process feed %s: %s', feed_url, e)
+        # Store in Azure Table Storage
+        self._store_in_table_storage(table_client, fp_enriched_df)
 
+    @log_and_raise_error("Failed to retrieve RSS feeds.")
+    def _retrieve_feed(self, feed_url: str) -> pd.DataFrame:
+        """
+        Retrieves RSS feeds from the provided URLs.
+
+        :param feed_urls: List of URLs for RSS feeds.
+        :return: DataFrame containing the parsed feed entries.
+        """
+        feed = feedparser.parse(feed_url)
+        logger.info('Processing feed: %s at URL: %s', feed.title, feed_url)
+        if feed.entries:
+            fp_df = pd.DataFrame(feed.entries)
+            if 'id' in fp_df.columns:
+                fp_df.set_index('id', inplace=True)
+                return self._create_feed_output_df(fp_df)
+            else:
+                logger.warning('Feed entries do not contain an "id" field: %s', feed_url)
+        else:
+            logger.warning('No entries found in feed: %s', feed_url)
+        
+        return pd.DataFrame()
+
+    @log_execution_time()
     @log_and_raise_error("Failed to retrieve feed URLs from config.")
     def _retrieve_feed_urls(self, config_container_name: str, config_blob_name: str) -> list:
         if not all([config_container_name, config_blob_name]):
