@@ -27,13 +27,11 @@ Logging:
 """
 
 import os
-import asyncio
 import logging
 
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
-from rss_processor import RssProcessor
 from utils.logger import configure_logging, update_handler_level
 from rss_ingestion_service import RssIngestionService
 
