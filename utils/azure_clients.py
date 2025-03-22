@@ -20,26 +20,35 @@ Functions:
     BlobStorageTokenBackend.check_token: Checks the existence of a token in Azure Blob Storage.
 """
 
+# --- Modified Import Groupings ---
+
+# Standard Library Imports
 import os
 import threading
 from typing import Optional, Dict
 import json
 
+# Azure SDK Imports
 from azure.core.exceptions import (ClientAuthenticationError,
                                    HttpResponseError, ResourceNotFoundError)
 from azure.ai.inference import ChatCompletionsClient
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient
 from azure.data.tables import TableServiceClient
+
+# Microsoft Graph Imports
 from msgraph import GraphServiceClient
 
+# O365 & Related SDK Imports
 from O365 import Account
 from O365.utils import BaseTokenBackend
 
-from utils.logger import configure_logging
+# Local Application Imports
+from utils.logger import LoggerFactory
+from utils.decorators import log_and_raise_error, log_execution_time, retry_on_failure
 
-# Configure logging
-logger = configure_logging(__name__)
+# Configure logging using LoggerFactory
+logger = LoggerFactory.get_logger(__name__)
 
 class AzureClientFactory:
     """
@@ -71,26 +80,25 @@ class AzureClientFactory:
                     cls._instance = cls()
         return cls._instance
 
+    @log_and_raise_error("❌ BlobServiceClient creation failed.")
     def get_blob_service_client(self) -> BlobServiceClient:
         """
         Returns a BlobServiceClient using DefaultAzureCredential.
         """
-        if self._blob_service_client is None:
-            try:
-                account_url = os.getenv("AZURE_STORAGEACCOUNT_BLOBENDPOINT")
-                if not account_url:
-                    raise ValueError("Missing Azure Blob Storage endpoint URL.")
+        if not self._blob_service_client:
+            account_url = os.getenv("AZURE_STORAGEACCOUNT_BLOBENDPOINT")
+            if not account_url:
+                raise ValueError("Missing Azure Blob Storage endpoint URL.")
 
-                logger.info("Using DefaultAzureCredential for BlobServiceClient.")
-                self._blob_service_client = BlobServiceClient(account_url, credential=DefaultAzureCredential())
+            self._blob_service_client = BlobServiceClient(account_url, credential=DefaultAzureCredential())
+            logger.info("✅ BlobServiceClient created successfully.")
 
-                logger.info("✅ BlobServiceClient created successfully.")
-            except Exception as e:
-                logger.error("❌ BlobServiceClient creation failed: %s", e)
-                raise
         return self._blob_service_client
 
-    def download_blob_content(self, container_name: str, blob_name: str) -> Optional[str]:
+    @log_execution_time()
+    @log_and_raise_error("❌ Blob download failed.")
+    @retry_on_failure(retries=1, delay=500)
+    def download_blob_content(self, container_name: str, blob_name: str) -> str:
         """
         Downloads the content of a blob from Azure Blob Storage.
 
@@ -99,43 +107,34 @@ class AzureClientFactory:
         :return: The content of the blob as a stripped string, or None if an error occurs.
         """
         if not all([container_name, blob_name]):
-            logger.error("Container name or blob name is missing.")
-            return None
+            logger.error("Container name or blob name is missing. container=%s, blob=%s", container_name, blob_name)
+            raise ValueError("Container name or blob name is missing.")
+        
+        logger.info("Downloading blob: container=%s, blob=%s", container_name, blob_name)
+        content = self.get_blob_service_client().get_blob_client(container=container_name, blob=blob_name).download_blob().readall()
+        return content.decode('utf-8').strip()
 
-        try:
-            content = self.get_blob_service_client().get_blob_client(container=container_name, blob=blob_name).download_blob().readall()
-            return content.decode('utf-8').strip()
-        except (ResourceNotFoundError, ClientAuthenticationError, HttpResponseError) as e:
-            logger.error("Error accessing blob: container=%s, blob=%s, error=%s", container_name, blob_name, e)
-        except Exception as e:
-            logger.error("Failed to download blob content: container=%s, blob=%s, error=%s, exception=%s",
-                         container_name, blob_name, e, e.__class__.__name__)
-        return None
-
+    @log_and_raise_error("❌ TableServiceClient creation failed.")
     def get_table_service_client(self) -> TableServiceClient:
         """
         Returns a TableServiceClient using DefaultAzureCredential.
         """
-        if self._table_service_client is None:
-            try:
-                account_url = os.getenv("AZURE_STORAGEACCOUNT_TABLEENDPOINT")
-                if not account_url:
-                    raise ValueError("Missing Azure Table Storage endpoint URL.")
+        if not self._table_service_client:
+            account_url = os.getenv("AZURE_STORAGEACCOUNT_TABLEENDPOINT")
+            if not account_url:
+                raise ValueError("Missing Azure Table Storage endpoint URL.")
 
-                logger.info("Using DefaultAzureCredential for TableServiceClient.")
-                self._table_service_client = TableServiceClient(account_url, credential=DefaultAzureCredential())
+            self._table_service_client = TableServiceClient(account_url, credential=DefaultAzureCredential())
+            logger.info("✅ TableServiceClient created successfully.")
 
-                logger.info("✅ TableServiceClient created successfully.")
-            except Exception as e:
-                logger.error("❌ TableServiceClient creation failed: %s", e)
-                raise
         return self._table_service_client
 
+    @log_and_raise_error("❌ Azure OpenAI client creation failed.")
     def get_openai_clients(self) -> Dict[str, ChatCompletionsClient]:
         """
         Returns authenticated Azure OpenAI clients.
         """
-        if self._openai_clients is None:
+        if not self._openai_clients:
             models = {
                 "MODEL_SUMMARY": None,
                 "MODEL_LIGHT_SUMMARY": None,
@@ -143,68 +142,46 @@ class AzureClientFactory:
                 "MODEL_EMBEDDING_FAST": None,
                 "MODEL_EMBEDDING_DEEP": None
             }
+            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 
-            try:
-                azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-                for model, _ in models.items():
-                    azure_deployment = os.getenv(model)
+            for model, _ in models.items():
+                azure_deployment = os.getenv(model)
+                if not all([azure_endpoint, azure_deployment]):
+                    raise ValueError("Missing Azure OpenAI credentials. Check environment variables.")
+                self._openai_clients[model] = ChatCompletionsClient(endpoint=azure_endpoint,
+                                                                    credential=DefaultAzureCredential())
+                logger.info("✅ Azure OpenAI %s client %s created successfully.", model, azure_deployment)
 
-                    if not all([azure_endpoint, azure_deployment]):
-                        raise ValueError(
-                            "Missing Azure OpenAI credentials. Check environment variables.")
-
-                    # Use DefaultAzureCredential to get the token
-                    # This approach leverages Azure's managed identity to obtain a token securely
-                    # This enhances operational security by avoiding the need to manage and rotate secrets
-                    # on the Azure OpenAI account (compute) resource manually.
-
-                    self._openai_clients[model] = ChatCompletionsClient(endpoint=azure_endpoint,
-                                                                        credential=DefaultAzureCredential())
-                    logger.info("✅ Azure OpenAI %s client %s created successfully.", model, azure_deployment)
-            except Exception as e:
-                logger.error("❌ Azure OpenAI client creation failed: %s", e)
-                raise
         return self._openai_clients
 
-    # TODO: Update for use with Azure Functions
+    @log_and_raise_error("❌ GraphServiceClient authentication failed.")
     def get_graph_client(self) -> GraphServiceClient:
         """
         Returns an authenticated Microsoft Graph client using DefaultAzureCredential.
         """
-        if self._graph_client is None:
-            try:
-                # Instantiate the GraphServiceClient with the credential
-                self._graph_client = GraphServiceClient(DefaultAzureCredential())
-                logger.info(
-                    "✅ Microsoft Graph client authenticated successfully.")
-            except Exception as e:
-                logger.error(
-                    "❌ GraphServiceClient authentication failed: %s", e)
-                raise
+        if not self._graph_client:
+            self._graph_client = GraphServiceClient(DefaultAzureCredential())
+            logger.info("✅ Microsoft Graph client authenticated successfully.")
         return self._graph_client
 
-    # TODO: Update for use with Azure Functions
+    @log_and_raise_error("❌ O365 Account authentication failed.")
     def get_o365_account(self) -> Account:
         """
         Returns an authenticated O365 Account object using DefaultAzureCredential.
         """
         if self._o365_account is None:
-            try:
-                # Use the token to authenticate the O365 Account
-                connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-                container_name = "token-container"
-                blob_name = "o365_token.json"
-                token_backend = BlobStorageTokenBackend(container_name, blob_name, connection_string)
-                self._o365_account = Account((os.getenv("RSSAP_CLIENT_ID"), os.getenv("RSSAP_CLIENT_SECRET")), 
-                                            token_backend=token_backend, tenant_id=os.getenv("RSSAP_TENANT_ID"))
-                
-                if not self._o365_account.authenticate():
-                    raise ClientAuthenticationError("O365 Account authentication failed.")
-                
-                logger.info("✅ O365 Account authenticated successfully.")
-            except Exception as e:
-                logger.error("❌ O365 Account authentication failed: %s", e)
-                raise
+            # Use the token to authenticate the O365 Account
+            connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+            container_name = "token-container"
+            blob_name = "o365_token.json"
+            token_backend = BlobStorageTokenBackend(container_name, blob_name, connection_string)
+            self._o365_account = Account((os.getenv("RSSAP_CLIENT_ID"), os.getenv("RSSAP_CLIENT_SECRET")), 
+                                        token_backend=token_backend, tenant_id=os.getenv("RSSAP_TENANT_ID"))
+            
+            if not self._o365_account.authenticate():
+                raise ClientAuthenticationError("O365 Account authentication failed.")
+            
+            logger.info("✅ O365 Account authenticated successfully.")
         return self._o365_account
 
 # TODO: Update for use with Azure Functions and fix AI draft
@@ -223,6 +200,7 @@ class BlobStorageTokenBackend(BaseTokenBackend):
         self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
         self.container_client = self.blob_service_client.get_container_client(container_name)
 
+    @retry_on_failure()
     def load_token(self):
         """
         Loads a token from Azure Blob Storage.
@@ -238,6 +216,7 @@ class BlobStorageTokenBackend(BaseTokenBackend):
             logger.error("Failed to load token from blob storage: %s", e)
             return None
 
+    @retry_on_failure()
     def save_token(self, token):
         """
         Saves a token to Azure Blob Storage.
@@ -251,6 +230,7 @@ class BlobStorageTokenBackend(BaseTokenBackend):
         except Exception as e:
             logger.error("Failed to save token to blob storage: %s", e)
 
+    @retry_on_failure()
     def delete_token(self):
         """
         Deletes a token from Azure Blob Storage.
@@ -260,6 +240,7 @@ class BlobStorageTokenBackend(BaseTokenBackend):
         except Exception as e:
             logger.error("Failed to delete token from blob storage: %s", e)
 
+    @retry_on_failure()
     def check_token(self):
         """
         Checks the existence of a token in Azure Blob Storage.
