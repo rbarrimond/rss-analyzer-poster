@@ -34,10 +34,11 @@ import xxhash
 from azure.ai.inference import ChatCompletionsClient
 
 from utils.azure_clients import AzureClientFactory
-from utils.logger import configure_logging
+from utils.logger import LoggerFactory
+from utils.decorators import log_and_raise_error
 
-# Configure logging
-logger = configure_logging(__name__)
+# Configure logging using LoggerFactory
+logger = LoggerFactory.get_logger(__name__)
 
 class RssIngestionService:
     """
@@ -62,6 +63,7 @@ class RssIngestionService:
         """
         self.acf = AzureClientFactory.get_instance()
 
+    @log_and_raise_error("Failed to read and store RSS feeds.")
     def read_and_store_feeds(self, config_container_name: str = os.getenv('CONFIG_CONTAINER_NAME'),
                              config_blob_name: str = os.getenv('CONFIG_BLOB_NAME')) -> None:
         """
@@ -73,26 +75,9 @@ class RssIngestionService:
         :raises RuntimeError: If the configuration file fails to load.
         """
 
-        if not all([config_container_name, config_blob_name]):
-            logger.error("Missing required config parameters. container=%s, blob=%s", config_container_name, config_blob_name)
-            raise ValueError("Missing required config parameters.")
-
-        config_json = self.acf.download_blob_content(config_container_name, config_blob_name)
-        if config_json is None:
-            logger.error("Failed to load configuration file. container=%s, blob=%s", config_container_name, config_blob_name)
-            raise RuntimeError("Failed to load configuration file.")
-        config = json.loads(config_json)
-
-        feed_urls = config.get("feed_urls", [])
-        if not feed_urls:
-            logger.warning("No feed URLs found in the configuration file.")
-            raise ValueError("No feed URLs found in the configuration file.")
-        
         table_client = self.acf.get_table_service_client()
         openai_client = self.acf.get_openai_clients()["MODEL_RANKING"]
-        if not all([table_client, openai_client]):
-            logger.error("Failed to initialize required clients. Table client: %s, OpenAI client: %s", table_client, openai_client)
-            raise ValueError("Failed to initialize required clients.")
+        feed_urls = self._retrieve_feed_urls(config_container_name, config_blob_name)
         
         # Process feeds
 
@@ -124,6 +109,19 @@ class RssIngestionService:
             except Exception as e:
                 logger.warning('Failed to process feed %s: %s', feed_url, e)
 
+    @log_and_raise_error("Failed to retrieve feed URLs from config.")
+    def _retrieve_feed_urls(self, config_container_name: str, config_blob_name: str) -> list:
+        if not all([config_container_name, config_blob_name]):
+            logger.error("Missing required config parameters. container=%s, blob=%s", config_container_name, config_blob_name)
+            raise ValueError("Missing required config parameters.")
+
+        feed_urls = json.loads(self.acf.download_blob_content(config_container_name, config_blob_name)).get("feeds", [])
+
+        if not feed_urls:
+            raise ValueError("No feed URLs found in the configuration file.")
+        
+        return feed_urls
+        
     def _create_feed_output_df(self, input_df: pd.DataFrame) -> pd.DataFrame:
         """
         Creates an output DataFrame with predefined columns from the input DataFrame.
@@ -214,6 +212,7 @@ class RssIngestionService:
                 logger.info("Stored entry in Azure Table Storage: %s", row["Entry_ID"])
             except Exception as e:
                 logger.error("Failed to store entry in Table Storage: %s | Error: %s", row["Entry_ID"], e)
+
 
     def _improve_summary(self, text: str, openai_client: ChatCompletionsClient) -> str:
         """
