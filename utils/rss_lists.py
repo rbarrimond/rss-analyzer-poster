@@ -26,10 +26,10 @@ from msgraph.generated.sites.item.lists.item.columns.columns_request_builder imp
 from msgraph.generated.sites.item.lists.item.items.items_request_builder import \
     ItemsRequestBuilder
 
-from utils.logger import configure_logging
+from utils.logger_factory import LoggerFactory
 
 # Configure logging
-logger = configure_logging(__name__)
+logger = LoggerFactory.get_logger(__name__)
 
 async def fetch_column_names(graph_service_client, site_id: str, list_id: str) -> pd.Series:
     """

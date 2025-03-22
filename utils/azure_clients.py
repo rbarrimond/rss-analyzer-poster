@@ -44,7 +44,7 @@ from O365 import Account
 from O365.utils import BaseTokenBackend
 
 # Local Application Imports
-from utils.logger import LoggerFactory
+from utils.logger_factory import LoggerFactory
 from utils.decorators import log_and_raise_error, log_execution_time, retry_on_failure
 
 # Configure logging using LoggerFactory

@@ -1,8 +1,8 @@
 import feedparser
-from utils.logger import configure_logging
+from utils.logger_factory import LoggerFactory
 
 # Configure logging
-logger = configure_logging(__name__)
+logger = LoggerFactory.get_logger(__name__)
 
 def parse_rss_feed(url):
     """
