@@ -32,11 +32,12 @@ import logging
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
-from utils.logger import configure_logging, update_handler_level
+from utils.logger_factory import LoggerFactory
 from rss_ingestion_service import RssIngestionService
 
 # Configure logging
-logger = configure_logging(__name__)
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+logger = LoggerFactory.getLogger(__name__, level=log_level)
 
 # Create the Azure Functions application instance
 app = func.FunctionApp()
@@ -151,7 +152,7 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
     }
 
     if new_level in level_mapping:
-        update_handler_level(logger, level_mapping[new_level])
+        logger.setLevel(new_level)
         return func.HttpResponse(f"Log level updated to {new_level}.", status_code=200)
     else:
         return func.HttpResponse(f"Invalid log level: {new_level}.", status_code=400)
