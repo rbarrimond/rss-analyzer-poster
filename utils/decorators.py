@@ -1,38 +1,43 @@
 """
 Module for decorators.
 
-This module provides decorators to enhance error handling and logging capabilities.
+This module provides decorators to enhance error handling, logging, and retry capabilities.
+Each decorator includes detailed parameter descriptions and usage examples.
 """
 
 import functools
 import logging
 from typing import Type, Callable, Any
 import time
+from utils.logger import LoggerFactory
 
-def log_and_raise_error(logger: logging.Logger, exception_class: Type[Exception], message: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def log_and_raise_error(
+    message: str = "An unexpected error occurred.",
+    logger: logging.Logger = LoggerFactory.create_logger(__name__, handler_level=logging.ERROR),
+    exception_class: Type[Exception] = Exception
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     A decorator factory that wraps a function call in a try-except block, logs the error,
     and raises a specified exception with a custom message when an unexpected error occurs.
-
-    This decorator catches any Exception raised within the decorated function, logs it using
-    lazy formatting with the provided logger, and then re-raises the error as an instance of 
-    the provided exception class while preserving the original traceback context.
-
+    
     Parameters:
-        logger (logging.Logger): Logger instance used for logging errors.
-        exception_class (Type[Exception]): Exception class to be raised on error.
-        message (str): Custom error message to log and associate with the raised exception.
-
+        message (str): Custom message to log and pass to the raised exception.
+            Defaults to "An unexpected error occurred."
+        logger (logging.Logger): Logger instance to use for logging errors.
+            Defaults to a logger created for the current module at ERROR level.
+        exception_class (Type[Exception]): Exception type to be raised.
+            Defaults to Exception.
+    
     Returns:
-        Callable: A decorator that can be applied to any function.
-
+        Callable: A decorator that wraps the target function.
+    
     Example:
-        @log_and_raise_error(my_logger, ValueError, "An error occurred")
-        def my_function():
-            # ...function implementation...
+        @log_and_raise_error("An error occurred in process_data")
+        def process_data(data):
+            # Process the data and possibly raise an exception.
             pass
     """
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
@@ -43,35 +48,26 @@ def log_and_raise_error(logger: logging.Logger, exception_class: Type[Exception]
         return wrapper
     return decorator
 
-def log_execution(logger: logging.Logger, log_level: int = logging.DEBUG) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def log_execution(
+    logger: logging.Logger = LoggerFactory.create_logger(__name__, handler_level=logging.DEBUG),
+    log_level: int = logging.DEBUG
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     A decorator that logs a function's execution start, parameters, and duration.
-
-    The decorator logs the function name along with its positional and keyword arguments 
-    at the beginning of execution, then logs the completion and execution time using the 
-    specified log level (default is DEBUG).
-
+    
     Parameters:
-        logger (logging.Logger): Logger instance used for logging.
-        log_level (int): Log level for messages; defaults to logging.DEBUG.
-
+        logger (logging.Logger): Logger instance to use for logging execution details.
+            Defaults to a logger created for the current module at DEBUG level.
+        log_level (int): Logging level for the execution logs.
+            Defaults to logging.DEBUG.
+    
     Returns:
-        Callable: A decorator that can be applied to any function to log its execution details.
-
+        Callable: A decorator that wraps the target function.
+    
     Example:
-        >>> import logging
-        >>> logging.basicConfig(level=logging.DEBUG)
-        >>> logger = logging.getLogger("example")
-        >>>
-        >>> @log_execution(logger)
-        ... def add(a, b):
-        ...     return a + b
-        >>>
-        >>> result = add(3, 4)
-        DEBUG:example:Starting add with args: (3, 4), kwargs: {}
-        DEBUG:example:Finished add in 0.0001 seconds
-        >>> print(result)
-        7
+        @log_execution
+        def compute(x, y):
+            return x + y
     """
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
@@ -85,24 +81,33 @@ def log_execution(logger: logging.Logger, log_level: int = logging.DEBUG) -> Cal
         return wrapper
     return decorator
 
-def retry_on_failure(logger: logging.Logger, retries: int = 3, delay: int = 1000, log_level: int = logging.DEBUG) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def retry_on_failure(
+    logger: logging.Logger = LoggerFactory.create_logger(__name__, handler_level=logging.DEBUG),
+    retries: int = 3,
+    delay: int = 1000,
+    log_level: int = logging.DEBUG
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     A decorator factory that retries a function call when it fails. It catches exceptions during each call,
     logs the exception and retry attempt, and retries the function after a specified delay.
     
     Parameters:
-        logger (logging.Logger): Logger instance for logging retry attempts and errors.
-        retries (int): Number of retry attempts, default is 3.
-        delay (int): Delay between retries in milliseconds, default is 1000 ms.
-        log_level (int): Log level for logging retry messages, default is logging.DEBUG.
-        
+        logger (logging.Logger): Logger instance to use for logging retry attempts and errors.
+            Defaults to a logger created for the current module at DEBUG level.
+        retries (int): Number of retry attempts before giving up.
+            Defaults to 3.
+        delay (int): Delay in milliseconds between retry attempts.
+            Defaults to 1000 (1 second).
+        log_level (int): Logging level for retry messages.
+            Defaults to logging.DEBUG.
+    
     Returns:
-        Callable: A decorator that can be applied to any function to add retry logic.
+        Callable: A decorator that wraps the target function.
     
     Example:
-        @retry_on_failure(logger, retries=5, delay=500)
+        @retry_on_failure(retries=5, delay=2000)
         def unstable_function():
-            # ...function logic that may raise an exception...
+            # Code that might fail intermittently.
             pass
     """
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
