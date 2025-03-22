@@ -1,15 +1,27 @@
-"""
-Module for decorators.
+"""Module for decorators.
 
-This module provides decorators to enhance error handling, logging, and retry capabilities.
-Each decorator includes detailed parameter descriptions and usage examples.
+This module provides a collection of decorators organized into logical groups:
+1. Error Handling Decorators:
+   - log_and_raise_error: Logs an error then raises a specified exception.
+   - log_and_ignore_error: Logs an error and ignores it.
+   - log_and_return_default: Logs an error and returns a default value.
+2. Performance Decorators:
+   - log_execution_time: Logs function execution start, parameters, and duration.
+3. Retry Decorators:
+   - retry_on_failure: Retries a function when it fails, with error logging and delay.
+
+These decorators enhance error handling, logging, and retry capabilities.
 """
 
 import functools
 import logging
 from typing import Type, Callable, Any
 import time
-from utils.logger import LoggerFactory
+from utils.logger_factory import LoggerFactory
+
+# ------------------------------
+# Error Handling Decorators
+# ------------------------------
 
 def log_and_raise_error(
     message: str = "An unexpected error occurred.",
@@ -48,6 +60,80 @@ def log_and_raise_error(
         return wrapper
     return decorator
 
+def log_and_ignore_error(
+    message: str = "An unexpected error occurred.",
+    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR)
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    A decorator factory that wraps a function call in a try-except block, logs
+    the error, and ignores it (i.e., does not re-raise an exception).
+
+    Parameters:
+        message (str): Custom message to log on error.
+            Defaults to "An unexpected error occurred."
+        logger (logging.Logger): Logger instance to use for logging errors.
+            Defaults to a logger created for the current module at ERROR level.
+
+    Returns:
+        Callable: A decorator that wraps the target function.
+
+    Example:
+        @log_and_ignore_error("An error occurred in process_data.")
+        def process_data(data):
+            # Process the data and possibly raise an exception.
+            pass
+    """
+    def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger.error("%s: %s", message, e)
+                # Error is ignored; return None by default.
+        return wrapper
+    return decorator
+
+def log_and_return_default(
+    default_value: Any,
+    message: str = "An unexpected error occurred.",
+    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR)
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    A decorator factory that wraps a function call in a try-except block, logs
+    the error, and returns a default value instead of raising the exception.
+
+    Parameters:
+        default_value: The return value to use when the function call fails.
+        message (str): Custom message to log on error.
+            Defaults to "An unexpected error occurred."
+        logger (logging.Logger): Logger instance to use for logging errors.
+            Defaults to a logger created for the current module at ERROR level.
+
+    Returns:
+        Callable: A decorator that wraps the target function.
+
+    Example:
+        @log_and_return_default(default_value=[])
+        def get_feed_items(feed_url):
+            # Process the feed and possibly raise an exception.
+            pass
+    """
+    def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger.error("%s: %s", message, e)
+                return default_value
+        return wrapper
+    return decorator
+
+# ------------------------------
+# Performance Decorators
+# ------------------------------
+
 def log_execution_time(
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG),
     log_level: int = logging.DEBUG
@@ -80,6 +166,10 @@ def log_execution_time(
             return result
         return wrapper
     return decorator
+
+# ------------------------------
+# Retry Decorators
+# ------------------------------
 
 def retry_on_failure(
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG),
@@ -127,4 +217,31 @@ def retry_on_failure(
                     time.sleep(delay / 1000.0)
         return wrapper
     return decorator
+
+# ------------------------------
+# Tracing Decorators
+# ------------------------------
+
+def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
+    # Decorator for tracing a single method with execution timing.
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            class_name = args[0].__class__.__name__ if args else ''
+            method_name = func.__name__
+            logger.debug("%s.%s has triggered.", class_name, method_name)
+            start = time.perf_counter()
+            result = func(*args, **kwargs)
+            duration = time.perf_counter() - start
+            logger.debug("%s.%s has finished in %.4f seconds.", class_name, method_name, duration)
+            return result
+        return wrapper
+    return decorator
+
+def trace_class(cls: Any) -> Any:
+    # Class decorator that applies trace_method to all non-dunder methods.
+    for attr_name, attr in cls.__dict__.items():
+        if callable(attr) and not attr_name.startswith("__"):
+            setattr(cls, attr_name, trace_method()(attr))
+    return cls
 
