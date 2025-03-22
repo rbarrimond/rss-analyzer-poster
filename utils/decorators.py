@@ -13,7 +13,7 @@ from utils.logger import LoggerFactory
 
 def log_and_raise_error(
     message: str = "An unexpected error occurred.",
-    logger: logging.Logger = LoggerFactory.create_logger(__name__, handler_level=logging.ERROR),
+    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
     exception_class: Type[Exception] = Exception
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
@@ -32,7 +32,7 @@ def log_and_raise_error(
         Callable: A decorator that wraps the target function.
     
     Example:
-        @log_and_raise_error("An error occurred in process_data")
+        @log_and_raise_error("An error occurred in process_data.")
         def process_data(data):
             # Process the data and possibly raise an exception.
             pass
@@ -48,8 +48,8 @@ def log_and_raise_error(
         return wrapper
     return decorator
 
-def log_execution(
-    logger: logging.Logger = LoggerFactory.create_logger(__name__, handler_level=logging.DEBUG),
+def log_execution_time(
+    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG),
     log_level: int = logging.DEBUG
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
@@ -65,11 +65,11 @@ def log_execution(
         Callable: A decorator that wraps the target function.
     
     Example:
-        @log_execution
+        @log_execution_time
         def compute(x, y):
             return x + y
     """
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             start = time.perf_counter()
@@ -82,7 +82,7 @@ def log_execution(
     return decorator
 
 def retry_on_failure(
-    logger: logging.Logger = LoggerFactory.create_logger(__name__, handler_level=logging.DEBUG),
+    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG),
     retries: int = 3,
     delay: int = 1000,
     log_level: int = logging.DEBUG
@@ -110,7 +110,7 @@ def retry_on_failure(
             # Code that might fail intermittently.
             pass
     """
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             attempt = 0

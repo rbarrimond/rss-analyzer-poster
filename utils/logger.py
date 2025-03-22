@@ -8,8 +8,8 @@ class LoggerFactory:
     """Factory class for creating and configuring loggers."""
 
     @staticmethod
-    def create_logger(module_name: str, handler_level: int = logging.INFO, 
-                      log_to_file: bool = False, file_name: str = None) -> logging.Logger:
+    def get_logger(module_name: str, handler_level: int = logging.INFO, 
+                   log_to_file: bool = False, file_name: str = None) -> logging.Logger:
         """
         Create and configure a logger for a given module.
 
