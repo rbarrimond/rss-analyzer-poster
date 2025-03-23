@@ -27,23 +27,24 @@ Logging:
 """
 
 import os
-import logging
 
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
+from utils.decorators import log_and_raise_error, log_and_return_default
 from utils.logger import LoggerFactory
 from services.rss_ingestion_service import RssIngestionService
+from services.rss_queueing_service import RssQueueingService
 
 # Configure logging
-log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
-logger = LoggerFactory.get_logger(__name__, level=log_level)
+logger = LoggerFactory.get_logger(__name__)
 
 # Create the Azure Functions application instance
 app = func.FunctionApp()
 
 @app.function_name(name="rssFeedProcessor")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
+@log_and_raise_error("Failed to process RSS feeds.")
 def rss_feed_processor(myTimer: func.TimerRequest) -> None:
     """
     Scheduled Azure Function (runs daily at 6 AM UTC):
@@ -52,10 +53,7 @@ def rss_feed_processor(myTimer: func.TimerRequest) -> None:
     :param myTimer: The timer request object that triggers the function.
     """
     logger.info('RSS Feed Processor triggered.')
-    try:
-        RssProcessor().read_and_store_feeds()
-    except Exception as e:
-        logger.error("Error processing RSS feeds: %s", e)
+    RssQueueingService().process_rss_feeds()
 
 @app.function_name(name="rssFeedProcessorHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
@@ -88,6 +86,7 @@ def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
 
 @app.function_name(name="rssSummarizerHttp")
 @app.route(route="summarize", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
+@log_and_return_default(func.HttpResponse("Failed to summarize RSS articles.", status_code=500), message="Failed to summarize RSS articles.")
 def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
@@ -97,17 +96,13 @@ def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     :return: HTTP response indicating the result of the operation.
     """
     logger.info('RSS Summarizer HTTP triggered.')
-    try:
-        with lock:  # Ensure atomic access
-            # Add the logic to summarize and update existing RSS articles
-            pass
-        return func.HttpResponse("RSS articles summarized successfully.", status_code=200)
-    except Exception as e:
-        logger.error(f"Error summarizing RSS articles: {e}")
-        return func.HttpResponse(f"Error summarizing RSS articles: {e}", status_code=500)
+    # TODO: Add the logic to fetch RSS feeds and store them in Microsoft Lists
+
+    return func.HttpResponse("RSS articles summarized successfully.", status_code=200)
 
 @app.function_name(name="rssPosterHttp")
 @app.route(route="collect", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
+@log_and_return_default(func.HttpResponse("Failed to collect RSS feeds.", status_code=500), message="Failed to collect RSS feeds.")
 def rss_poster_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
@@ -117,17 +112,13 @@ def rss_poster_http(req: HttpRequest) -> HttpResponse:
     :return: HTTP response indicating the result of the operation.
     """
     logger.info('RSS Poster HTTP triggered.')
-    try:
-        with lock:  # Ensure atomic access
-            # Add the logic to fetch RSS feeds and store them in Microsoft Lists
-            pass
-        return func.HttpResponse("RSS feeds collected and stored successfully.", status_code=200)
-    except Exception as e:
-        logger.error(f"Error collecting RSS feeds: {e}")
-        return func.HttpResponse(f"Error collecting RSS feeds: {e}", status_code=500)
+    # TODO: Add the logic to fetch RSS feeds and store them in Microsoft Lists
+    
+    return func.HttpResponse("RSS feeds collected and stored successfully.", status_code=200)
 
 @app.function_name(name="updateLogLevel")
 @app.route(route="updateLogLevel", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
+@log_and_return_default(func.HttpResponse("Invalid input log level", status_code=400), message="Failed to update log level.")
 def update_log_level(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered Function:
@@ -137,22 +128,8 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
     :return: HTTP response indicating the result of the operation.
     """
     logger.info('Update Log Level HTTP triggered.')
-    try:
-        req_body = req.get_json()
-    except ValueError:
-        return func.HttpResponse("Invalid JSON body.", status_code=400)
-
-    new_level = req_body.get('log_level', 'INFO').upper()
-    level_mapping = {
-        'DEBUG': logging.DEBUG,
-        'INFO': logging.INFO,
-        'WARNING': logging.WARNING,
-        'ERROR': logging.ERROR,
-        'CRITICAL': logging.CRITICAL
-    }
-
-    if new_level in level_mapping:
-        logger.setLevel(new_level)
-        return func.HttpResponse(f"Log level updated to {new_level}.", status_code=200)
-    else:
-        return func.HttpResponse(f"Invalid log level: {new_level}.", status_code=400)
+    new_level = req.get_json().get('log_level')
+    if not new_level:
+        raise ValueError("Log level not provided.")
+    LoggerFactory.update_handler_level(logger, new_level)
+    return func.HttpResponse(f"Log level updated to {new_level}.", status_code=200)
