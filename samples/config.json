@@ -1,0 +1,13 @@
+{
+    "RssQueueingService": {
+        "feeds": [
+            "http://feeds.bbci.co.uk/news/rss.xml",
+            "http://feeds.reuters.com/reuters/UKTopNews"
+        ],
+        "queue": "rss-queue"
+    },
+    "RssIngestionService": {
+        "endpoint": "http://dummy-ingestion-url"
+        // ...other dummy properties...
+    }
+}
