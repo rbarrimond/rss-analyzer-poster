@@ -45,11 +45,12 @@ from O365.utils import BaseTokenBackend
 
 # Local Application Imports
 from utils.logger_factory import LoggerFactory
-from utils.decorators import log_and_raise_error, log_execution_time, retry_on_failure
+from utils.decorators import log_and_raise_error, log_execution_time, retry_on_failure, trace_class
 
 # Configure logging using LoggerFactory
 logger = LoggerFactory.get_logger(__name__)
 
+@trace_class
 class AzureClientFactory:
     """
     A singleton factory class for creating and managing Azure service clients.
@@ -58,8 +59,9 @@ class AzureClientFactory:
     _instance = None
     _lock = threading.Lock()
 
+    @log_and_raise_error("❌ AzureClientFactory creation failed.")
     def __init__(self):
-        if AzureClientFactory._instance is not None:
+        if not AzureClientFactory._instance:
             raise RuntimeError("This class is a singleton!")
         self._blob_service_client: BlobServiceClient = None
         self._table_service_client: TableServiceClient = None
