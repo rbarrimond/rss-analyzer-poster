@@ -32,7 +32,7 @@ import logging
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
-from utils.logger_factory import LoggerFactory
+from utils.logger import LoggerFactory
 from services.rss_ingestion_service import RssIngestionService
 
 # Configure logging

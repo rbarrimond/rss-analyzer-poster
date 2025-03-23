@@ -20,21 +20,19 @@ Functions:
     BlobStorageTokenBackend.check_token: Checks the existence of a token in Azure Blob Storage.
 """
 
-# --- Modified Import Groupings ---
-
 # Standard Library Imports
 import os
 import threading
-from typing import Optional, Dict
+from typing import Dict
 import json
 
 # Azure SDK Imports
-from azure.core.exceptions import (ClientAuthenticationError,
-                                   HttpResponseError, ResourceNotFoundError)
+from azure.core.exceptions import (ClientAuthenticationError)
 from azure.ai.inference import ChatCompletionsClient
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient
 from azure.data.tables import TableServiceClient
+from azure.storage.queue import QueueServiceClient
 
 # Microsoft Graph Imports
 from msgraph import GraphServiceClient
@@ -44,7 +42,7 @@ from O365 import Account
 from O365.utils import BaseTokenBackend
 
 # Local Application Imports
-from utils.logger_factory import LoggerFactory
+from utils.logger import LoggerFactory
 from utils.decorators import log_and_raise_error, log_execution_time, retry_on_failure, trace_class
 
 # Configure logging using LoggerFactory
@@ -66,6 +64,7 @@ class AzureClientFactory:
         self._blob_service_client: BlobServiceClient = None
         self._table_service_client: TableServiceClient = None
         self._openai_clients: Dict[str, ChatCompletionsClient] = {}
+        self._queue_service_client: QueueServiceClient = None  # new attribute
 
         # TODO: Update Graph clients for use with Azure Functions
         self._o365_account: Account = None
@@ -155,6 +154,22 @@ class AzureClientFactory:
                 logger.info("✅ Azure OpenAI %s client %s created successfully.", model, azure_deployment)
 
         return self._openai_clients
+
+    @log_and_raise_error("❌ QueueServiceClient creation failed.")
+    def get_queue_service_client(self) -> QueueServiceClient:
+        """
+        Returns an instance of QueueServiceClient using DefaultAzureCredential.
+        
+        Returns:
+            QueueServiceClient: The QueueServiceClient instance.
+        """
+        if not self._queue_service_client:
+            queue_endpoint = os.getenv("AZURE_STORAGEACCOUNT_QUEUEENDPOINT")
+            if not queue_endpoint:
+                raise ValueError("Missing Azure Queue Storage endpoint URL.")
+            self._queue_service_client = QueueServiceClient(queue_endpoint, credential=DefaultAzureCredential())
+            logger.info("✅ QueueServiceClient created successfully.")
+        return self._queue_service_client
 
     @log_and_raise_error("❌ GraphServiceClient authentication failed.")
     def get_graph_client(self) -> GraphServiceClient:

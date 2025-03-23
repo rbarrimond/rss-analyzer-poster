@@ -1,5 +1,5 @@
 import feedparser
-from utils.logger_factory import LoggerFactory
+from utils.logger import LoggerFactory
 
 # Configure logging
 logger = LoggerFactory.get_logger(__name__)

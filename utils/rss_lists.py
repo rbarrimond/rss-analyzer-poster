@@ -26,7 +26,7 @@ from msgraph.generated.sites.item.lists.item.columns.columns_request_builder imp
 from msgraph.generated.sites.item.lists.item.items.items_request_builder import \
     ItemsRequestBuilder
 
-from utils.logger_factory import LoggerFactory
+from utils.logger import LoggerFactory
 
 # Configure logging
 logger = LoggerFactory.get_logger(__name__)

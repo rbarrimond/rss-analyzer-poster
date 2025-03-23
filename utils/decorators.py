@@ -17,7 +17,7 @@ import functools
 import logging
 from typing import Type, Callable, Any
 import time
-from utils.logger_factory import LoggerFactory
+from utils.logger import LoggerFactory
 
 # ------------------------------
 # Error Handling Decorators
