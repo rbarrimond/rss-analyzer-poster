@@ -58,6 +58,7 @@ class RssIngestionService:
     - feedparser for parsing RSS feeds.
     """
 
+    @log_and_raise_error("Failed to initialize RssIngestionService.")
     def __init__(self):
         """
         Initializes the RssIngestionService instance and sets up the AzureClientFactory.
