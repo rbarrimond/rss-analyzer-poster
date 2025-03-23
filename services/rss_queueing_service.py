@@ -53,7 +53,7 @@ class RssQueueingService:
         self.feed_urls: list = config.get('feeds', [])
         self.queue_name: str = config.get('queue', os.getenv('RSS_QUEUE_NAME'))
         self.queue_client: QueueClient = acf.get_instance().get_queue_service_client().get_client(self.queue_name)
-        self.last_run: datetime = config.get('last_run', EPOCH_RFC1123))
+        self.last_run: datetime = config.get('last_run', EPOCH_RFC1123)
 
         if not all([self.feed_urls, self.queue_name, self.queue_client]):
             raise ValueError("Missing required configuration values.")
