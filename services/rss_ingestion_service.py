@@ -37,7 +37,6 @@ from utils.azclients import AzureClientFactory
 from utils.logger import LoggerFactory
 from utils.decorators import log_and_raise_error, log_execution_time, trace_class
 
-# Configure logging using LoggerFactory
 logger = LoggerFactory.get_logger(__name__)
 
 @trace_class

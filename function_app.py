@@ -53,7 +53,7 @@ def rss_feed_processor(myTimer: func.TimerRequest) -> None:
     :param myTimer: The timer request object that triggers the function.
     """
     logger.info('RSS Feed Processor triggered.')
-    RssQueueingService().process_rss_feeds()
+    RssQueueingService().run()
 
 @app.function_name(name="rssFeedProcessorHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
