@@ -1,7 +1,9 @@
+"""Module providing the ConfigLoader class for loading configuration from Azure Blob storage."""
+
 import os
 import json
 from utils.azclients import AzureClientFactory
-from utils.decorators import log_and_ignore_error, log_and_raise_error, retry_on_failure, trace_class
+from utils.decorators import log_and_raise_error, retry_on_failure, trace_class
 
 @trace_class
 class ConfigLoader:
@@ -22,6 +24,7 @@ class ConfigLoader:
 
     @log_and_raise_error("Failed to initialize ConfigLoader.")
     def __new__(cls):
+        """Create and return the singleton instance of ConfigLoader."""
         if cls._instance is None:
             # Create and store the singleton instance
             cls._instance = super(ConfigLoader, cls).__new__(cls)
@@ -31,6 +34,7 @@ class ConfigLoader:
     @retry_on_failure(retries=2, delay=1000)
     def __init__(self, container: str = os.environ.get("CONFIG_CONTAINER_NAME", "config"),
                  blob_name: str = os.environ.get("CONFIG_BLOB_NAME", "app_config.json")):
+        """Initialize the ConfigLoader by loading JSON configuration from Azure blob storage."""
         # Avoid reloading if already initialized
         if hasattr(self, 'config_data'):
             return  # already loaded
@@ -46,15 +50,20 @@ class ConfigLoader:
         self.config_data = json.loads(
             blob_client.download_blob().readall().decode('utf-8'))
 
-    # Refactor into a property that returns the full configuration.
     @property
     def config(self) -> dict:
-        # Return the full configuration dictionary.
+        """Return the full configuration as a dictionary."""
         return self.config_data
 
-    # Add __getattr__ to provide property-like access for target class configurations.
     def __getattr__(self, name: str) -> dict:
-        # Return the configuration for the target class if available.
+        """Provide attribute-like access to target class configurations.
+        
+        Returns:
+            dict: The configuration for the target class if available.
+            
+        Raises:
+            AttributeError: If the configuration for the target class is not found.
+        """
         if name in self.config_data:
             return self.config_data[name]
         raise AttributeError(f"'ConfigLoader' object has no attribute '{name}'")
