@@ -1,26 +1,30 @@
-# Library for parsing RSS feeds
-feedparser
-# Libraries for Azure Functions
-azure-functions
-# Library for Azure Blob Storage interaction
-azure-storage-blob
-# Library for Azure authentication
-azure-identity
-# Library for OpenAI API interaction
-openai
-# Libraries for Microsoft Graph API authentication and interaction
-msal
-msgraph-sdk
-msgraph-core
-# Library for Azure Key Vault interaction
-azure-keyvault-secrets
-# Pandas to read and manipulate data
-pandas
-# Library for O365 API interaction
-O365
-# Library for Azure Table Storage interaction
-azure-data-tables
-# Library for fast non-cryptographic hashing
-xxhash
 # Library for Azure AI Inference
 azure-ai-inference
+# Library for Azure Table Storage interaction
+azure-data-tables
+# Libraries for Azure Functions
+azure-functions
+# Library for Azure authentication
+azure-identity
+# Library for Azure Key Vault interaction
+azure-keyvault-secrets
+# Library for Azure Blob Storage interaction
+azure-storage-blob
+# Library for Azure Queue Storage interaction
+azure-storage-queue
+# Library for parsing RSS feeds
+feedparser
+# Libraries for Microsoft Graph API authentication and interaction (msal)
+msal
+# Libraries for Microsoft Graph API authentication and interaction (core)
+msgraph-core
+# Libraries for Microsoft Graph API authentication and interaction (sdk)
+msgraph-sdk
+# Library for O365 API interaction
+O365
+# Library for OpenAI API interaction
+openai
+# Pandas to read and manipulate data
+pandas
+# Library for fast non-cryptographic hashing
+xxhash
