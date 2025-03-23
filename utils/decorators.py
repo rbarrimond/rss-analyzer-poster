@@ -223,8 +223,31 @@ def retry_on_failure(
 # ------------------------------
 
 def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
-    # Decorator for tracing a single method with execution timing.
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    """
+    A decorator for tracing a single method's execution.
+
+    This decorator logs when the method is triggered and when it finishes along with its execution time.
+    It extracts the class name from the first argument (assumed to be an instance) and logs messages 
+    using the provided logger.
+
+    Parameters:
+        logger (logging.Logger): Logger instance to log tracing information.
+            Defaults to a logger created for the current module at DEBUG level.
+
+    Returns:
+        Callable: A decorator that wraps the method with tracing functionality.
+
+    Example:
+        class MyClass:
+            @trace_method()
+            def my_method(self):
+                # ...existing code...
+                pass
+
+        obj = MyClass()
+        obj.my_method()
+    """
+    def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             class_name = args[0].__class__.__name__ if args else ''
@@ -239,7 +262,34 @@ def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, han
     return decorator
 
 def trace_class(cls: Any) -> Any:
-    # Class decorator that applies trace_method to all non-dunder methods.
+    """
+    A class decorator that applies the trace_method decorator to all non-dunder methods of a class.
+
+    This decorator iterates over the class's attributes and wraps each callable attribute 
+    (excluding those whose names start with '__') with the trace_method decorator, enabling
+    execution tracing for each method.
+
+    Parameters:
+        cls (Any): The class whose methods will be wrapped with trace_method.
+
+    Returns:
+        Any: The modified class with tracing enabled on its non-dunder methods.
+
+    Example:
+        @trace_class
+        class MyClass:
+            def method_one(self):
+                # ...existing code...
+                pass
+
+            def method_two(self):
+                # ...existing code...
+                pass
+
+        obj = MyClass()
+        obj.method_one()
+        obj.method_two()
+    """
     for attr_name, attr in cls.__dict__.items():
         if callable(attr) and not attr_name.startswith("__"):
             setattr(cls, attr_name, trace_method()(attr))
