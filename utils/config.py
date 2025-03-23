@@ -1,6 +1,6 @@
 import os
 import json
-from utils.azure_clients import AzureClientFactory
+from utils.azclients import AzureClientFactory
 from utils.decorators import log_and_ignore_error, log_and_raise_error, retry_on_failure, trace_class
 
 @trace_class

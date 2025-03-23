@@ -33,11 +33,11 @@ import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
 
 from utils.logger_factory import LoggerFactory
-from rss_ingestion_service import RssIngestionService
+from services.rss_ingestion_service import RssIngestionService
 
 # Configure logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
-logger = LoggerFactory.getLogger(__name__, level=log_level)
+logger = LoggerFactory.get_logger(__name__, level=log_level)
 
 # Create the Azure Functions application instance
 app = func.FunctionApp()
