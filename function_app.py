@@ -2,9 +2,9 @@
 Azure Function App
 
 This module defines the Azure Functions for collecting and analyzing RSS feeds:
-1. rssAnalyzerPoster - Scheduled to run daily at 6 AM (UTC) to fetch new RSS feeds, store them in 
-   Microsoft Lists, and analyze them using Azure OpenAI.
-2. rssAnalyzerPosterHttp - HTTP-triggered endpoint to fetch and analyze RSS feeds on-demand.
+1. enqueueRssFeeds - Scheduled to run daily at 6 AM (UTC) to queue new RSS feeds via RssQueueingService,
+   which then forwards the feeds via a queue to RssIngestionService for processing.
+2. rssFeedProcessorHttp - HTTP-triggered endpoint to fetch and analyze RSS feeds on-demand.
 3. rssSummarizerHttp - HTTP-triggered endpoint to summarize existing RSS articles without fetching new ones.
 4. rssPosterHttp - HTTP-triggered endpoint to fetch RSS feeds without analyzing them.
 
@@ -42,62 +42,58 @@ logger = LoggerFactory.get_logger(__name__)
 # Create the Azure Functions application instance
 app = func.FunctionApp()
 
-@app.function_name(name="rssFeedProcessor")
-@app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
-@log_and_raise_error("Failed to process RSS feeds.")
-def rss_feed_processor(myTimer: func.TimerRequest) -> None:
-    """
-    Scheduled Azure Function (runs daily at 6 AM UTC):
-    Fetches RSS feeds from configured sources and stores them in Microsoft Lists.
+@log_and_return_default(default_value={}, message="Failed to extract JSON from request.")
+def _extract_json_from_request_body(req: HttpRequest) -> dict:
+    return req.get_json()
 
-    :param myTimer: The timer request object that triggers the function.
+@app.function_name(name="enqueueRssFeeds")
+@app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
+@log_and_raise_error("Failed to enque RSS feeds.")
+def enque_rss_feeds(myTimer: func.TimerRequest) -> None:
     """
-    logger.info('RSS Feed Processor triggered.')
+    Queues RSS feeds on a daily schedule (6 AM UTC).
+
+    Parameters:
+        myTimer (func.TimerRequest): Timer trigger object for the scheduled function.
+
+    Returns:
+        None
+    """
+    logger.info('RSS Queueing Service triggered.')
     RssQueueingService().run()
 
-@app.function_name(name="rssFeedProcessorHttp")
+@app.function_name(name="enqueueRssFeedsHttp")
 @app.route(route="analyze", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
-def rss_feed_processor_http(req: HttpRequest) -> HttpResponse:
+@log_and_return_default(func.HttpResponse("Failed to enque RSS feeds.", status_code=500), message="Failed to enque RSS feeds.")
+def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
     """
-    HTTP-triggered Function:
-    Fetches RSS feeds from configured sources, stores them in Microsoft Lists,
-    and analyzes each for summaries and scores when invoked externally.
+    HTTP-triggered endpoint to enqueue and process RSS feeds.
 
-    :param req: The HTTP request object.
-    :return: HTTP response indicating the result of the operation.
+    Parameters:
+        req (HttpRequest): The incoming HTTP request.
+
+    Returns:
+        HttpResponse: Returns a success message with status code 200 or an error response.
     """
-    logger.info('RSS Feed Processor HTTP triggered.')
-    try:
-        req_body = req.get_json()
-    except ValueError:
-        return func.HttpResponse("Invalid JSON body.", status_code=400)
-
-    config_container_name = req_body.get(
-        'config_container_name', os.getenv('CONFIG_CONTAINER_NAME'))
-    config_blob_name = req_body.get(
-        'config_blob_name', os.getenv('CONFIG_BLOB_NAME'))
-
-    try:
-        RssIngestionService().read_and_store_feeds(config_container_name, config_blob_name)
-        return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
-    except Exception as e:
-        logger.error(f"Error processing RSS feeds: {e}")
-        return func.HttpResponse(f"Error processing RSS feeds: {e}", status_code=500)
+    logger.info('RSS Queueing Service triggered.')
+    RssQueueingService().run()
+    return func.HttpResponse("RSS feeds processed and analyzed successfully.", status_code=200)
 
 @app.function_name(name="rssSummarizerHttp")
 @app.route(route="summarize", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 @log_and_return_default(func.HttpResponse("Failed to summarize RSS articles.", status_code=500), message="Failed to summarize RSS articles.")
 def rss_summarizer_http(req: HttpRequest) -> HttpResponse:
     """
-    HTTP-triggered Function:
-    Summarizes and updates existing RSS articles stored in Microsoft Lists.
+    HTTP-triggered endpoint to summarize existing RSS articles stored in Microsoft Lists.
 
-    :param req: The HTTP request object.
-    :return: HTTP response indicating the result of the operation.
+    Parameters:
+        req (HttpRequest): The incoming HTTP request.
+
+    Returns:
+        HttpResponse: Returns a success message with status code 200 or an error response.
     """
     logger.info('RSS Summarizer HTTP triggered.')
     # TODO: Add the logic to fetch RSS feeds and store them in Microsoft Lists
-
     return func.HttpResponse("RSS articles summarized successfully.", status_code=200)
 
 @app.function_name(name="rssPosterHttp")
