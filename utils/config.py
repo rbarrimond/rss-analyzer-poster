@@ -36,28 +36,25 @@ class ConfigLoader:
             return  # already loaded
 
         # Use provided container and blob_name parameters (defaulting to environment variables)
-        self.container = container
-        self.blob_name = blob_name
         azure_factory = AzureClientFactory.get_instance()
-        # Retrieve the blob client using the provided container and blob_name
+        # Retrieve the blob client using the local variables directly
         blob_client = azure_factory.get_blob_service_client().get_blob_client(
-            container=self.container,
-            blob=self.blob_name
+            container=container,
+            blob=blob_name
         )
-        content = blob_client.download_blob().readall()
         # Parse the JSON content
-        self.config_data = json.loads(content.decode('utf-8'))
+        self.config_data = json.loads(
+            blob_client.download_blob().readall().decode('utf-8'))
 
-    @log_and_ignore_error("Failed to get configuration.")
-    def get_config(self, target_class: str) -> dict:
-        """
-        Retrieves the configuration dictionary for the specified target class name.
-        
-        Args:
-            target_class (str): The name of the target class whose configuration is requested.
-        
-        Returns:
-            dict: The configuration object for the target class, or empty dict if not found.
-        """
-        # Return configuration for the given class; default to empty dict if not present.
-        return self.config_data.get(target_class, {})
+    # Refactor into a property that returns the full configuration.
+    @property
+    def config(self) -> dict:
+        # Return the full configuration dictionary.
+        return self.config_data
+
+    # Add __getattr__ to provide property-like access for target class configurations.
+    def __getattr__(self, name: str) -> dict:
+        # Return the configuration for the target class if available.
+        if name in self.config_data:
+            return self.config_data[name]
+        raise AttributeError(f"'ConfigLoader' object has no attribute '{name}'")
