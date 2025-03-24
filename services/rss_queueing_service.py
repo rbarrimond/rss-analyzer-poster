@@ -61,7 +61,7 @@ class RssQueueingService:
             raise ValueError("Missing required configuration values.")
 
     @log_execution_time()
-    @log_and_raise_error("Failed to enque feeds.")
+    @log_and_raise_error("RSS Queueing Service failed.")
     def run(self):
         """
         Iterate over all configured feed URLs and process each feed by:
@@ -75,7 +75,7 @@ class RssQueueingService:
         for feed_url in self.feed_urls:
             if self._check_feed_for_update(feed_url, self.last_run):
                 self._enqueue_feed(feed_url)
-        logger.info("RSS feeds enqueued successfully.")
+        logger.info("RSS Queueing Service enqueued feeds successfully.")
 
     @log_execution_time()
     @log_and_return_default(False, message="Failed to check feed for update.")
