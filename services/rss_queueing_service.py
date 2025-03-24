@@ -10,7 +10,7 @@ import json
 import os
 import feedparser
 import requests
-from azure.storage.queue import QueueClient, QueueMessage
+from azure.storage.queue import QueueClient
 
 from utils.azclients import AzureClientFactory as acf
 from utils.config import ConfigLoader
@@ -62,10 +62,11 @@ class RssQueueingService:
     @log_and_raise_error("RSS Queueing Service failed.")
     def run(self):
         """
-        Iterate through all configured RSS feeds and process each one.
+        Process each configured RSS feed by checking for updates and enqueuing updated feeds.
 
-        For each feed URL, this method checks if there is new content. If updates are detected, the feed 
-        is enqueued for processing downstream.
+        For each feed URL, a conditional HTTP GET is performed using an 'If-Modified-Since'
+        header. If new content is detected (HTTP 200), the feed is enqueued for downstream processing.
+        After processing, the last_run timestamp is updated in the configuration.
         """
         for feed_url in self.feed_urls:
             if self._check_feed_for_update(feed_url, self.last_run):
@@ -74,8 +75,7 @@ class RssQueueingService:
 
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
-        ConfigLoader().RssQueueingService['last_run'] = datetime.now(
-            timezone.utc)
+        ConfigLoader().RssQueueingService['last_run'] = datetime.now(timezone.utc)
 
         logger.info("RSS Queueing Service enqueued feeds successfully.")
 
@@ -84,17 +84,12 @@ class RssQueueingService:
     @retry_on_failure(retries=1, delay=0)
     def _check_feed_for_update(self, feed_url: str, modified_since: datetime = EPOCH_RFC1123) -> bool:
         """
-        Check if the RSS feed at the given URL has been updated.
+        Check whether an RSS feed has been updated based on the provided timestamp.
 
-        Sends a conditional GET request with the 'If-Modified-Since' header set to the provided timestamp.
-        If the server returns HTTP 200, the feed has new content, and the last_run timestamp is updated.
-        If HTTP 304 is returned, no new content is available.
-
-        Returns:
-            bool: True if updated (HTTP 200), False if not (HTTP 304).
-
+        Sends a GET request with an 'If-Modified-Since' header formatted as RFC1123.
+        Returns True if the feed returns HTTP 200 (indicating new content) and False if HTTP 304.
         Raises:
-            requests.exceptions.HTTPError: Propagated if the HTTP request fails.
+            requests.exceptions.HTTPError: When the HTTP request fails.
         """
         # Format the datetime to RFC1123 string for the header.
         headers = {"If-Modified-Since": format_datetime(modified_since)}
@@ -111,15 +106,14 @@ class RssQueueingService:
     @log_and_raise_error("Failed to enqueue feed.")
     def _enqueue_feed(self, feed_url: str) -> None:
         """
-        Enqueue the RSS feed after validating and processing its contents.
+        Enqueue an RSS feed for further processing.
 
-        Parses the feed using feedparser to extract:
-          - Feed metadata.
-          - A list of entry IDs from the feed entries (if present).
-
-        Constructs a JSON payload that includes an envelope with queue metadata,
-        the parsed feed data, and the list of entry IDs, then sends this payload to the Azure queue.
-
+        Parses the RSS feed to retrieve metadata and extract entry IDs.
+        Constructs a JSON payload that includes:
+          - An envelope with the state "enqueued", a current ISO-formatted timestamp, and a null eTag.
+          - The feed metadata.
+          - A list of entry IDs.
+        The payload is then sent to the Azure queue.
         Raises:
             ValueError: If the feed metadata is missing, indicating an invalid RSS feed.
         """
