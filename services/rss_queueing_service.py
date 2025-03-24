@@ -56,10 +56,12 @@ class RssQueueingService:
         self.last_run: datetime = config.get('last_run', EPOCH_RFC1123)
 
         if not all([self.feed_urls, self.queue_name, self.queue_client]):
+            logger.debug("Missing configuration values: feeds=%s, queue=%s, queue_client=%s", 
+                         self.feed_urls, self.queue_name, self.queue_client)
             raise ValueError("Missing required configuration values.")
 
     @log_execution_time()
-    @log_and_raise_error("Failed to process feeds.")
+    @log_and_raise_error("Failed to enque feeds.")
     def run(self):
         """
         Iterate over all configured feed URLs and process each feed by:
@@ -93,13 +95,15 @@ class RssQueueingService:
         headers = {"If-Modified-Since": format_datetime(modified_since)}
         response = requests.get(feed_url, timeout=5, headers=headers)
         response.raise_for_status()
+        
         if response.status_code == 304:
             return False
-        else:
-            # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
-            # across service instantiations.
-            self.last_run = datetime.now(timezone.utc)
-            return response.status_code == 200
+        
+        # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
+        # across service instantiations.
+        self.last_run = datetime.now(timezone.utc)
+
+        return response.status_code == 200
 
     @log_and_raise_error("Failed to enqueue feed.")
     def _enqueue_feed(self, feed_url: str) -> None:
