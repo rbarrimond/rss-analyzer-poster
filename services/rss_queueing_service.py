@@ -81,7 +81,7 @@ class RssQueueingService:
 
     @log_execution_time()
     @log_and_return_default(False, message="Failed to check feed for update.")
-    @retry_on_failure(retries=1, delay=0)
+    @retry_on_failure(retries=1, delay=0) # Retry once with delay coming from timeout in requests.get()
     def _check_feed_for_update(self, feed_url: str, modified_since: datetime = EPOCH_RFC1123) -> bool:
         """
         Check whether an RSS feed has been updated based on the provided timestamp.
