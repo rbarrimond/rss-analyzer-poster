@@ -1,29 +1,12 @@
 """
 Azure Function App
 
-This module defines the Azure Functions for collecting and analyzing RSS feeds:
-1. enqueueRssFeeds - Scheduled to run daily at 6 AM (UTC) to queue new RSS feeds via RssQueueingService,
-   which then forwards the feeds via a queue to RssIngestionService for processing.
-2. rssFeedProcessorHttp - HTTP-triggered endpoint to fetch and analyze RSS feeds on-demand.
-3. rssSummarizerHttp - HTTP-triggered endpoint to summarize existing RSS articles without fetching new ones.
-4. rssPosterHttp - HTTP-triggered endpoint to fetch RSS feeds without analyzing them.
+This module defines the Azure Functions for handling RSS feed operations:
+1. enqueRssFeeds - Scheduled to run daily at 6 AM UTC to queue new RSS feeds via RssQueueingService.
+2. enqueRssFeedsHttp - HTTP-triggered endpoint to enqueue RSS feeds.
+3. updateLogLevel - HTTP-triggered endpoint to dynamically update the logging level.
 
-Dependencies:
-- Uses Azure Blob Storage for storing configuration files and role content.
-- Integrates with Microsoft Graph API to interact with Microsoft Lists.
-- Utilizes Azure OpenAI for generating summaries and engagement scores.
-
-Environment Variables:
-- Various environment variables are used for configuration, including Azure Blob Storage endpoints, 
-  SharePoint site and list IDs, and Azure Key Vault URL for secrets.
-
-Key Operations:
-- Fetching RSS feeds from URLs specified in a configuration file stored in Azure Blob Storage.
-- Storing RSS feed entries in Microsoft Lists.
-- Analyzing and summarizing RSS feed entries using Azure OpenAI and updating Microsoft Lists with the results.
-
-Logging:
-- Logging is configured to provide detailed information about the operations performed by each function.
+Also includes an internal helper to extract JSON from HTTP requests.
 """
 
 import azure.functions as func
@@ -44,11 +27,14 @@ app = func.FunctionApp()
 @log_and_ignore_error("enque_rss_feeds function failed.")
 def enque_rss_feeds(myTimer: func.TimerRequest) -> None:
     """
-    Queues RSS feeds on a daily schedule (6 AM UTC).
-
+    Queues RSS feeds daily at 6 AM UTC.
+    
+    This function is triggered by a timer and activates RssQueueingService
+    to process the RSS feeds.
+    
     Parameters:
-        myTimer (func.TimerRequest): Timer trigger object for the scheduled function.
-
+        myTimer (func.TimerRequest): The timer trigger object.
+        
     Returns:
         None
     """
@@ -63,13 +49,16 @@ def enque_rss_feeds(myTimer: func.TimerRequest) -> None:
 )
 def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
     """
-    HTTP-triggered endpoint to enqueue and process RSS feeds.
-
+    HTTP endpoint for enqueuing and processing RSS feeds.
+    
+    Receives a POST request, triggers the RssQueueingService, and returns a JSON response
+    indicating whether the operation succeeded.
+    
     Parameters:
         req (HttpRequest): The incoming HTTP request.
-
+        
     Returns:
-        HttpResponse: Returns a success message with status code 200 or an error response.
+        HttpResponse: A JSON response with a success or error message.
     """
     logger.info('RSS Queueing Service triggered.')
     RssQueueingService().run()
@@ -83,11 +72,17 @@ def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
 )
 def update_log_level(req: HttpRequest) -> HttpResponse:
     """
-    HTTP-triggered Function:
-    Updates the log level of the logger based on the request parameter.
-
-    :param req: The HTTP request object.
-    :return: HTTP response indicating the result of the operation.
+    Dynamically updates the logging level via an HTTP request.
+    
+    Accepts a POST request with a JSON payload containing the 'log_level' key. The logger's level
+    is updated based on this parameter. Returns a JSON response confirming the update or an error
+    message if the parameter is missing.
+    
+    Parameters:
+        req (HttpRequest): The incoming HTTP request containing the desired log level.
+        
+    Returns:
+        HttpResponse: A JSON response detailing the result of the update operation.
     """
     logger.info('Update Log Level HTTP triggered.')
 
@@ -100,4 +95,13 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
 
 @log_and_return_default(default_value={}, message="Failed to extract JSON from request.")
 def _extract_json_from_request_body(req: HttpRequest) -> dict:
+    """
+    Extracts JSON data from the HTTP request body.
+    
+    Parameters:
+        req (HttpRequest): The incoming HTTP request.
+        
+    Returns:
+        dict: Parsed JSON from the request.
+    """
     return req.get_json()
