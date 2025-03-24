@@ -33,7 +33,7 @@ import pandas as pd
 import xxhash
 from azure.ai.inference import ChatCompletionsClient
 
-from utils.azclients import AzureClientFactory
+from utils.azclients import AzureClientFactory as acf
 from utils.logger import LoggerFactory
 from utils.decorators import log_and_raise_error, log_execution_time, trace_class
 
@@ -62,7 +62,7 @@ class RssIngestionService:
         """
         Initializes the RssIngestionService instance and sets up the AzureClientFactory.
         """
-        self.acf = AzureClientFactory.get_instance()
+        self.acf = acf.get_instance()
 
     @log_and_raise_error("Failed to read and store RSS feeds.")
     def read_and_store_feeds(self, config_container_name: str = os.getenv('CONFIG_CONTAINER_NAME'),

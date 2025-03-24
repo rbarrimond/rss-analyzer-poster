@@ -2,7 +2,7 @@
 
 import os
 import json
-from utils.azclients import AzureClientFactory
+from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error, retry_on_failure, trace_class
 
 @trace_class
@@ -40,9 +40,8 @@ class ConfigLoader:
             return  # already loaded
 
         # Use provided container and blob_name parameters (defaulting to environment variables)
-        azure_factory = AzureClientFactory.get_instance()
         # Retrieve the blob client using the local variables directly
-        blob_client = azure_factory.get_blob_service_client().get_blob_client(
+        blob_client = acf.get_instance().get_blob_service_client().get_blob_client(
             container=container,
             blob=blob_name
         )
