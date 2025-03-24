@@ -1,9 +1,7 @@
 """
 Module: rss_queueing_service
-This module implements the RssQueueingService class which manages the retrieval 
-and processing of RSS feeds. It loads configuration details, checks feeds for updates 
-via conditional HTTP GET requests, and enqueues updated feeds for subsequent processing 
-using an Azure queue.
+This module handles the loading of configuration, conditional HTTP checking of RSS feeds for updates,
+and enqueuing updated feeds (with entry IDs) into an Azure Queue for downstream processing.
 """
 
 from datetime import datetime, timezone
@@ -12,7 +10,7 @@ import json
 import os
 import feedparser
 import requests
-from azure.storage.queue import QueueClient
+from azure.storage.queue import QueueClient, QueueMessage
 
 from utils.azclients import AzureClientFactory as acf
 from utils.config import ConfigLoader
@@ -25,38 +23,38 @@ logger = LoggerFactory.get_logger(__name__)
 
 EPOCH_RFC1123 = datetime(1970, 1, 1)
 
+
 @trace_class
 class RssQueueingService:
     """
-    RssQueueingService orchestrates the processing of configured RSS feeds.
-    It performs the following:
-      - Loads feeds configuration and required Azure resources.
-      - Checks each RSS feed for newly published content using HTTP GET requests 
-        with 'If-Modified-Since' headers.
-      - Enqueues the URLs of updated feeds for downstream processing.
-    
+    The RssQueueingService class is responsible for managing RSS feed processing.
+    It loads the configuration, checks for feed updates using conditional HTTP GET requests,
+    and enqueues updated feeds along with their entry IDs for subsequent processing.
+
     Raises:
-        ValueError: If essential configuration values (feeds, queue name, or queue client) are missing.
+        ValueError: If required configuration (feeds list, queue name, or queue client instance) is missing.
     """
     @log_and_raise_error("❌ Failed to initialize RssQueueingService.")
     def __init__(self):
         """
-        Initializes the RssQueueingService by:
-          - Loading the list of RSS feeds and the Azure queue name from configuration or environment variables.
-          - Instantiating the Azure QueueClient.
-          - Setting the last processed time to a default value if not provided.
-          
+        Initialize the RssQueueingService instance.
+
+        Reads the feeds list and Azure queue settings from the configuration (or environment).
+        Sets up an Azure QueueClient for sending messages and initializes a last_run timestamp
+        used to determine if feeds have new content.
+
         Raises:
-          ValueError: If any required configuration (feeds, queue name, or queue client) is absent.
+            ValueError: When mandatory configuration values (feeds, queue name, or queue client) are absent.
         """
         config: dict = ConfigLoader().RssQueueingService
         self.feed_urls: list = config.get('feeds', [])
         self.queue_name: str = config.get('queue', os.getenv('RSS_QUEUE_NAME'))
-        self.queue_client: QueueClient = acf.get_instance().get_queue_service_client().get_client(self.queue_name)
+        self.queue_client: QueueClient = acf.get_instance(
+        ).get_queue_service_client().get_client(self.queue_name)
         self.last_run: datetime = config.get('last_run', EPOCH_RFC1123)
 
         if not all([self.feed_urls, self.queue_name, self.queue_client]):
-            logger.debug("Missing configuration values: feeds=%s, queue=%s, queue_client=%s", 
+            logger.debug("Missing configuration values: feeds=%s, queue=%s, queue_client=%s",
                          self.feed_urls, self.queue_name, self.queue_client)
             raise ValueError("Missing required configuration values.")
 
@@ -64,17 +62,15 @@ class RssQueueingService:
     @log_and_raise_error("RSS Queueing Service failed.")
     def run(self):
         """
-        Iterate over all configured feed URLs and process each feed by:
-          - Validating the existence of a feed URL.
-          - Sending an HTTP GET request with an 'If-Modified-Since' header to check for new content.
-          - Updating the last processed timestamp if new content is found.
-          - Enqueuing the feed URL into the Azure queue for downstream processing.
- 
-        Feeds that are missing or invalid are skipped.
+        Iterate through all configured RSS feeds and process each one.
+
+        For each feed URL, this method checks if there is new content. If updates are detected, the feed 
+        is enqueued for processing downstream.
         """
         for feed_url in self.feed_urls:
             if self._check_feed_for_update(feed_url, self.last_run):
                 self._enqueue_feed(feed_url)
+                logger.info("RSS Queueing Service enqueued feed: %s", feed_url)
         logger.info("RSS Queueing Service enqueued feeds successfully.")
 
     @log_execution_time()
@@ -82,23 +78,26 @@ class RssQueueingService:
     @retry_on_failure(retries=1, delay=0)
     def _check_feed_for_update(self, feed_url: str, modified_since: datetime = EPOCH_RFC1123) -> bool:
         """
-        Checks for new content in the specified RSS feed.
-        
-        Sends an HTTP GET request to the feed URL with the "If-Modified-Since" header set to the provided timestamp.
-        Returns True if the feed has been updated (HTTP 200) and updates the last_run timestamp; 
-        returns False if no new content is detected (HTTP 304).
-        
+        Check if the RSS feed at the given URL has been updated.
+
+        Sends a conditional GET request with the 'If-Modified-Since' header set to the provided timestamp.
+        If the server returns HTTP 200, the feed has new content, and the last_run timestamp is updated.
+        If HTTP 304 is returned, no new content is available.
+
+        Returns:
+            bool: True if updated (HTTP 200), False if not (HTTP 304).
+
         Raises:
-            requests.exceptions.HTTPError: If the HTTP GET request fails.
+            requests.exceptions.HTTPError: Propagated if the HTTP request fails.
         """
         # Format the datetime to RFC1123 string for the header.
         headers = {"If-Modified-Since": format_datetime(modified_since)}
         response = requests.get(feed_url, timeout=5, headers=headers)
         response.raise_for_status()
-        
+
         if response.status_code == 304:
             return False
-        
+
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
         self.last_run = datetime.now(timezone.utc)
@@ -108,13 +107,38 @@ class RssQueueingService:
     @log_and_raise_error("Failed to enqueue feed.")
     def _enqueue_feed(self, feed_url: str) -> None:
         """
-        Enqueues the RSS feed after validating its contents.
-        
-        Parses the feed metadata using feedparser. 
-        If the feed is invalid (i.e., missing metadata), raises a ValueError. 
-        Otherwise, serializes the metadata to JSON and sends it to the Azure queue.
+        Enqueue the RSS feed after validating and processing its contents.
+
+        Parses the feed using feedparser to extract:
+          - Feed metadata.
+          - A list of entry IDs from the feed entries (if present).
+
+        Constructs a JSON payload that includes an envelope with queue metadata,
+        the parsed feed data, and the list of entry IDs, then sends this payload to the Azure queue.
+
+        Raises:
+            ValueError: If the feed metadata is missing, indicating an invalid RSS feed.
         """
-        feed_metadata = feedparser.parse(feed_url).feed
+        feed_data = feedparser.parse(feed_url)
+        feed_metadata = feed_data.feed
         if not feed_metadata:
             raise ValueError(f"Invalid feed URL: {feed_url}")
-        self.queue_client.send_message(json.dumps(feed_metadata))
+
+        # Extract a list of entry IDs from the feed entries
+        entry_ids = [
+            entry.id for entry in feed_data.entries if hasattr(entry, 'id')]
+
+        payload = {
+            "envelope": {
+                "state": "enqueued",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "eTag": None
+            },
+            "feed": feed_metadata,
+            "entry_ids": entry_ids
+        }
+
+        message = self.queue_client.send_message(json.dumps(payload))
+
+        logger.debug("Enqueued feed: %s, message_id: %s, eTag: %s",
+                     feed_url, message.id, message.get('_etag'))
