@@ -96,12 +96,15 @@ class RssQueueingService:
         response.raise_for_status()
 
         if response.status_code == 304:
+            logger.debug("Feed not updated: %s", feed_url)
             return False
 
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
         self.last_run = datetime.now(timezone.utc)
+        ConfigLoader().RssQueueingService['last_run'] = self.last_run
 
+        logger.debug("Feed updated: %s", feed_url)
         return response.status_code == 200
 
     @log_and_raise_error("Failed to enqueue feed.")
