@@ -45,7 +45,7 @@ resource "azurerm_role_assignment" "admin_storage_table_data_contributor" {
 # It is stored in the general-purpose storage account.
 
 resource "azurerm_storage_container" "config_container" {
-  name                  = "config"
+  name                  = var.config_container
   storage_account_id    = azurerm_storage_account.strg_storageaccount.id
   container_access_type = "private"
 }
@@ -55,7 +55,7 @@ resource "azurerm_storage_container" "config_container" {
 # It is stored in the general-purpose storage account.
 
 resource "azurerm_storage_container" "rss_entries_container" {
-  name                  = "rssentries"
+  name                  = var.rss_entries_container
   storage_account_id    = azurerm_storage_account.strg_storageaccount.id
   container_access_type = "private"
 }
@@ -65,7 +65,7 @@ resource "azurerm_storage_container" "rss_entries_container" {
 # It is stored in the general-purpose storage account.
 
 resource "azurerm_storage_table" "rss_feed_table" {
-  name                 = "rssfeedstable" 
+  name                 = var.rss_feed_table
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
@@ -74,10 +74,9 @@ resource "azurerm_storage_table" "rss_feed_table" {
 # It is stored in the general-purpose storage account.
 
 resource "azurerm_storage_table" "rss_entries_table" {
-  name                 = "rssentriestable" 
+  name                 = var.rss_entries_table
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
-
 
 # Create an Azure Storage Account for Function App Deployment
 # This storage account is specifically used for storing internal data and logs

@@ -36,3 +36,26 @@ variable "rssap_client_secret" {
   type        = string
   sensitive   = true
 }
+variable "config_container" {
+  description = "Default name for the configuration container."
+  type        = string
+  default     = "config"
+}
+
+variable "rss_entries_container" {
+  description = "Default name for the RSS entries container."
+  type        = string
+  default     = "rssEntries"
+}
+
+variable "rss_feed_table" {
+  description = "Default name for the RSS feeds table."
+  type        = string
+  default     = "rssFeedsTable"
+}
+
+variable "rss_entries_table" {
+  description = "Default name for the RSS entries table."
+  type        = string
+  default     = "rssEntriesTable"
+}
