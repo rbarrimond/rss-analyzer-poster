@@ -26,8 +26,14 @@ This repository contains Terraform Infrastructure as Code (IaC) for deploying an
 
 - **storageaccounts.tf**: Configures storage solutions for the application.
   - **General-Purpose Storage Account**: Provides scalable storage for application data.
-  - **Blob Container**: Configures a container within the storage account specifically for storing configuration files and other necessary data for the function app.
-  - **Deployment Storage Account**: Dedicated storage for deployment artifacts, ensuring efficient application updates.
+  - **Blob Container**: Configures containers within the storage account for storing configuration files and RSS entries.
+  - **Storage Table**: Configures tables within the storage account for storing RSS feed and entry information.
+  - **Deployment Storage Account**: Dedicated storage for internal Azure Function operation.
+
+- **servicebus.tf**: Manages the Azure Service Bus infrastructure.
+  - **Service Bus Namespace**: Creates a namespace for organizing service bus resources.
+  - **RSS Feed Info Queue**: Triggers processing of updated feeds.
+  - **RSS Feed Entries Queue**: Supports AI enrichment for feed entries.
 
 - **outputs.tf**: Provides essential information about the deployed resources.
   - **Storage Account Blob Endpoint**: Outputs the primary blob endpoint, which is the access point for the blob container storing application data and configurations.
@@ -66,5 +72,8 @@ Running this Terraform configuration will provision the following Azure resource
 - Configured blob containers for storing configuration files.
 - System-assigned managed identities and Key Vault references.
 - Cognitive services for AI-driven insights and processing.
+- A Service Bus Namespace along with:
+  - A queue for RSS feed info processing.
+  - A queue for RSS feed entries enrichment.
 
 This setup provides a scalable and secure environment for the RSS Analyzer Poster project, enabling efficient deployment and management of resources on Azure.

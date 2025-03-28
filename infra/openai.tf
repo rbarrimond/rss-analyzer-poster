@@ -53,6 +53,7 @@ resource "azurerm_cognitive_account" "main" {
 resource "azurerm_cognitive_deployment" "gpt35_turbo" {
   name                 = "gpt35Turbo${var.resource_suffix}"
   cognitive_account_id = azurerm_cognitive_account.main.id
+  rai_policy_name      = "Microsoft.DefaultV2"
   model {
     format = "OpenAI"
     name   = "gpt-35-turbo"
@@ -63,7 +64,10 @@ resource "azurerm_cognitive_deployment" "gpt35_turbo" {
   }
 
   lifecycle {
-    ignore_changes = [model[0].version]
+    ignore_changes = [
+      model[0].version,
+      sku[0].capacity
+      ]
   }
 }
 

@@ -33,6 +33,13 @@ resource "azurerm_storage_account" "strg_storageaccount" {
   }
 }
 
+# Assign Storage Table Data Contributor role to admin
+resource "azurerm_role_assignment" "admin_storage_table_data_contributor" {
+  principal_id         = var.admin_object_id
+  role_definition_name = "Storage Table Data Contributor"
+  scope                = azurerm_storage_account.strg_storageaccount.id
+}
+
 # Create a Blob Container for Function App Configurations
 # This container is used to store configuration files required by the function app.
 # It is stored in the general-purpose storage account.
@@ -43,8 +50,37 @@ resource "azurerm_storage_container" "config_container" {
   container_access_type = "private"
 }
 
+# Create a Blob Container for RSS Entries
+# This container is used to store RSS entries' full content.
+# It is stored in the general-purpose storage account.
+
+resource "azurerm_storage_container" "rss_entries_container" {
+  name                  = "rssentries"
+  storage_account_id    = azurerm_storage_account.strg_storageaccount.id
+  container_access_type = "private"
+}
+
+# Create an Azure Storage Table for RSS Feed Information
+# This table is used to store information about RSS feeds.
+# It is stored in the general-purpose storage account.
+
+resource "azurerm_storage_table" "rss_feed_table" {
+  name                 = "rssfeedstable" 
+  storage_account_name = azurerm_storage_account.strg_storageaccount.name
+}
+
+# Create an Azure Storage Table for RSS Entries
+# This table is used to store RSS entries.
+# It is stored in the general-purpose storage account.
+
+resource "azurerm_storage_table" "rss_entries_table" {
+  name                 = "rssentriestable" 
+  storage_account_name = azurerm_storage_account.strg_storageaccount.name
+}
+
+
 # Create an Azure Storage Account for Function App Deployment
-# This storage account is specifically used for storing deployment-related artifacts
+# This storage account is specifically used for storing internal data and logs
 # for the function app. It uses Local Redundant Storage (LRS) for cost efficiency.
 
 resource "azurerm_storage_account" "strg_funcdep" {
