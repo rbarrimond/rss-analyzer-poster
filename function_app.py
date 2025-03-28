@@ -75,7 +75,7 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
     Dynamically updates the logging level via an HTTP request.
     
     Accepts a POST request with a JSON payload containing the 'log_level' key. The logger's level
-    is updated based on this parameter. Returns a JSON response confirming the update or an error
+    is updated based on this parameter. Returns a JSON response confirming the update or an error 
     message if the parameter is missing.
     
     Parameters:
