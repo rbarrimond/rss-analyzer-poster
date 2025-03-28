@@ -9,6 +9,7 @@ variable "subscription_id" {
 variable "resource_suffix" {
   description = "A unique suffix for naming resources to avoid naming conflicts"
   type        = string
+  default     = "suf00" # Replace with a unique value for your environment
 }
 
 variable "location" {
