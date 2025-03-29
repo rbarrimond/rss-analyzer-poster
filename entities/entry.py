@@ -126,8 +126,6 @@ class Entry(BaseModel):
         Returns:
             str: The content retrieved from the URL.
         """
-        if not self._content_cache:
-            return None
         response = requests.get(self.link, timeout=10)
         if response.status_code == 200:
             return response.text
