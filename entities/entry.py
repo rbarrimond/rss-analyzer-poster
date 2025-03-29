@@ -10,7 +10,7 @@ from typing import Optional
 import os
 
 import xxhash
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, computed_field, HttpUrl, ConfigDict
 import requests
 
 from utils.azclients import AzureClientFactory as acf
@@ -30,60 +30,26 @@ class Entry(BaseModel):
     
     This model integrates with Azure Table Storage by mapping model fields to table entity properties via field aliases.
     """
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, validate_assignment=True)
+    
     _partition_key: str = Field(default="entry", alias="PartitionKey")
     _row_key: Optional[str] = Field(default=None, alias="RowKey")
-    title: Optional[str] = "Untitled"
+    title: str = Field(default="Untitled", min_length=1, max_length=200)
     id: str
     feed: str
-    link: str
+    link: HttpUrl
     _content: Optional[str] = Field(default=None, alias="content")
     _content_cache: Optional[str] = None
     published: datetime = datetime(1970, 1, 1)
-    author: Optional[str] = None
-    summary: Optional[str] = None
+    author: Optional[str] = Field(default=None, min_length=2, max_length=50)
+    summary: Optional[str] = Field(default=None, max_length=500)
     source: Optional[dict] = None
 
-    class Config:
-        """Pydantic configuration for the Entry model.
-
-        Enables the use of alias fields during both serialization and instantiation from dictionaries.
-        """
-        populate_by_name = True
-        from_attributes = True
-
-    @classmethod
-    @model_validator(mode="before")
-    def compute_row_key(cls, data):
-        """Computes the unique identifier (RowKey) for the entry based on its id.
-
-        Args:
-            data (dict): Dictionary of Entry data.
-
-        Returns:
-            dict: Updated data dictionary with computed '_row_key' if not provided.
-        """
-        if 'id' in data and not data.get('_row_key'):
-            data['_row_key'] = xxhash.xxh64(data['id']).hexdigest()
-        return data
-
+    @computed_field(alias="RowKey")
     @property
     def row_key(self) -> str:
-        """Returns the unique identifier (RowKey) for the entry.
+        return xxhash.xxh64(self.id).hexdigest()
 
-        Returns:
-            str: The computed row key.
-        """
-        return self._row_key
-
-    @row_key.setter
-    def row_key(self, value: str):
-        """Prevents setting the row_key as it is a read-only property.
-
-        Raises:
-            AttributeError: Always raised since row_key cannot be set.
-        """
-        raise AttributeError("This property is read-only and cannot be set.")
-    
     @log_and_return_default(default_value=None, message="Failed to retrieve content")
     @property
     def content(self) -> Optional[str]:
@@ -102,18 +68,15 @@ class Entry(BaseModel):
             self._content = xxhash.xxh64(text).hexdigest()
             self._content_cache = text
         return self._content_cache
-    
-    @content.setter
-    def content(self, text: str) -> None:
-        """Sets the content of the entry.
-        
-        Args:
-            text (str): The content to set.
-        """
-        self._content = xxhash.xxh64(text).hexdigest()
-        self._content_cache = text
-        container_client.get_blob_client(blob=f"{self._partition_key}/{self._content}.txt",
-                                        ).upload_blob(text, overwrite=True)
+
+    def __setattr__(self, name, value):
+        if name == "content":
+            hashed = xxhash.xxh64(value).hexdigest()
+            object.__setattr__(self, "_content", hashed)
+            object.__setattr__(self, "_content_cache", value)
+            container_client.get_blob_client(blob=f"{self._partition_key}/{hashed}.txt").upload_blob(value, overwrite=True)
+        else:
+            super().__setattr__(name, value)
 
     @classmethod
     def create(cls, **kwargs) -> "Entry":
@@ -126,7 +89,7 @@ class Entry(BaseModel):
             Entry: The created and persisted Entry instance.
         """
         entry = cls(**kwargs)
-        table_client.upsert_entity(entry.model_dump(by_alias=True))
+        table_client.upsert_entity(entry.model_dump())
         return entry
 
     def save(self) -> None:
@@ -134,34 +97,14 @@ class Entry(BaseModel):
 
         Serializes the current state of the Entry and updates the entity record in the storage.
         """
-        table_client.upsert_entity(self.model_dump(by_alias=True))
+        table_client.upsert_entity(self.model_dump())
 
     def delete(self) -> None:
         """Deletes the Entry instance from Azure Table Storage.
 
         Removes the corresponding entity record using its partition and row keys.
         """
-        table_client.delete_entity(self._partition_key, self._row_key)
-
-    def to_json(self) -> str:
-        """Serializes the Entry instance to a JSON formatted string.
-
-        Returns:
-            str: A JSON string representation of the Entry.
-        """
-        return self.model_dump_json(by_alias=True)
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "Entry":
-        """Constructs an Entry instance from a JSON formatted string.
-
-        Args:
-            json_str (str): A JSON string containing Entry data.
-
-        Returns:
-            Entry: The reconstructed Entry instance.
-        """
-        return cls.model_validate_json(json_str)
+        table_client.delete_entity(self._partition_key, self.row_key)
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
     def _get_content_blob(self) -> Optional[str]:

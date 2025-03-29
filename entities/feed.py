@@ -10,7 +10,7 @@ from typing import Optional
 import os
 
 import xxhash
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, computed_field, HttpUrl, ConfigDict
 
 from utils.azclients import AzureClientFactory as acf
 
@@ -24,55 +24,29 @@ class Feed(BaseModel):
     from the feed link using xxhash. This model integrates with Azure Table Storage
     by mapping model fields to table entity properties via field aliases.
     """
+    model_config = ConfigDict(
+        populate_by_name=True,
+        from_attributes=True,
+        validate_assignment=True
+    )
     _partition_key: str = Field(default="feed", alias="PartitionKey")
-    _row_key: Optional[str] = Field(default=None, alias="RowKey")
-    name: Optional[str] = "Unknown Name"
-    link: str
-    language: Optional[str] = None
-    publisher: Optional[str] = None
-    rights: Optional[str] = None
+    name: Optional[str] = Field(default="Unknown Name", min_length=1, max_length=200)
+    link: HttpUrl
+    language: Optional[str] = Field(default=None, regex=r'^[a-z]{2}(?:-[A-Z]{2})?$')
+    publisher: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    rights: Optional[str] = Field(default=None, max_length=500)
     updated: datetime = datetime(1970, 1, 1)
     image: Optional[dict] = None
-    subtitle: Optional[str] = None
+    subtitle: Optional[str] = Field(default=None, max_length=300)
 
-    class Config:
-        """
-        Pydantic configuration for the Feed model.
-
-        This configuration enables the use of alias fields during both serialization 
-        and instantiation from dictionaries. It also supports creation of models 
-        directly from attribute mappings.
-        """
-        populate_by_name = True  # Ensures alias fields work in serialization
-        from_attributes = True  # Allows model creation from dicts
-
-    @classmethod
-    @model_validator(mode="before")
-    def compute_row_key(cls, data):
-        """
-        Computes the unique identifier for the feed based on the link.
-        """
-        if 'link' in data and not data.get('_row_key'):
-            data['_row_key'] = xxhash.xxh64(data['link']).hexdigest()
-        return data
-
+    @computed_field(alias="RowKey")
     @property
     def row_key(self) -> str:
         """
         Returns the unique identifier for the feed.
         """
-        return self._row_key
-    
-    @row_key.setter
-    def row_key(self, value: str):
-        """
-        Sets the unique identifier for the feed. This is a read-only property.
+        return xxhash.xxh64(self.link).hexdigest()
         
-        Raises:
-            AttributeError: This property is read-only and cannot be set.
-        """
-        raise AttributeError("This property is read-only and cannot be set.")
-    
     @classmethod
     def create(cls, **kwargs) -> "Feed":
         """
@@ -89,7 +63,7 @@ class Feed(BaseModel):
             Feed: The created and persisted Feed instance.
         """
         feed = cls(**kwargs)
-        table_client.upsert_entity(feed.model_dump(by_alias=True))
+        table_client.upsert_entity(feed.model_dump())
         return feed
 
     def save(self) -> None:
@@ -99,7 +73,7 @@ class Feed(BaseModel):
         This method serializes the current state of the Feed and updates
         the corresponding record in the storage.
         """
-        table_client.upsert_entity(self.model_dump(by_alias=True))
+        table_client.upsert_entity(self.model_dump())
 
     def delete(self) -> None:
         """
@@ -108,31 +82,3 @@ class Feed(BaseModel):
         This method deletes the Feed record using its partition and row keys.
         """
         table_client.delete_entity(self._partition_key, self._row_key)
-
-    def to_json(self) -> str:
-        """
-        Convert the Feed instance to a JSON string.
-        
-        This method serializes the Feed properties using their defined aliases,
-        producing a JSON representation.
-        
-        Returns:
-            str: A JSON string representing the Feed.
-        """
-        return self.model_dump_json(by_alias=True)
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "Feed":
-        """
-        Construct a Feed instance from a JSON string.
-        
-        This method parses the provided JSON string and creates a new Feed instance
-        populated with the data.
-        
-        Args:
-            json_str (str): A JSON formatted string containing Feed data.
-        
-        Returns:
-            Feed: The Feed instance reconstructed from the JSON input.
-        """
-        return cls.model_validate_json(json_str)
