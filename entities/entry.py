@@ -95,10 +95,10 @@ class Entry(BaseModel):
             content = self._get_content_blob()
             if not content:
                 content = self._get_content_http()  # Updated function call
-        self._content_cache = content
-        if not self._content_cache:
+        if not content:
             raise ValueError("Content is not available.")
-        return self._content_cache
+        self.content = content
+        return content
     
     @content.setter
     def content(self, text: str) -> None:
