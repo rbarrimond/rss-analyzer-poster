@@ -38,7 +38,6 @@ class Entry(BaseModel):
     _content: Optional[str] = Field(default=None, alias="content")
     _content_cache: Optional[str] = None
     published: datetime = datetime(1970, 1, 1)
-    updated: datetime = datetime(1970, 1, 1)
     author: Optional[str] = None
     summary: Optional[str] = None
 
