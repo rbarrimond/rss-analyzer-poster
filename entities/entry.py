@@ -6,7 +6,7 @@ and integrates with Azure Table Storage for create, update, delete, and serializ
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 import os
 
 import xxhash
@@ -19,9 +19,11 @@ from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
 
-TABLE_NAME = os.getenv("RSS_ENTRY_TABLE_NAME", "entries")
+ENTRY_TABLE_NAME = os.getenv("RSS_ENTRY_TABLE_NAME", "entries")
 CONTAINER_NAME = os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
-table_client = acf.get_instance().get_table_service_client().get_table_client(table_name=TABLE_NAME)
+AI_ENRICHMENT_TABLE_NAME = os.getenv("AI_ENRICHMENT_TABLE_NAME", "ai_enrichment")
+entry_table_client = acf.get_instance().get_table_service_client().get_table_client(table_name=ENTRY_TABLE_NAME)
+ai_enrichment_table_client = acf.get_instance().get_table_service_client().get_table_client(table_name=AI_ENRICHMENT_TABLE_NAME)
 container_client = acf.get_instance().get_blob_service_client().get_container_client(container_name=CONTAINER_NAME)
 
 class Entry(BaseModel):
@@ -49,6 +51,12 @@ class Entry(BaseModel):
     @property
     def row_key(self) -> str:
         return xxhash.xxh64(self.id).hexdigest()
+
+    # Added public computed property to access partition_key safely
+    @computed_field(alias="PartitionKey")
+    @property
+    def partition_key(self) -> str:
+        return self._partition_key
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content")
     @property
@@ -89,7 +97,7 @@ class Entry(BaseModel):
             Entry: The created and persisted Entry instance.
         """
         entry = cls(**kwargs)
-        table_client.upsert_entity(entry.model_dump())
+        entry_table_client.upsert_entity(entry.model_dump())
         return entry
 
     def save(self) -> None:
@@ -97,14 +105,14 @@ class Entry(BaseModel):
 
         Serializes the current state of the Entry and updates the entity record in the storage.
         """
-        table_client.upsert_entity(self.model_dump())
+        entry_table_client.upsert_entity(self.model_dump())
 
     def delete(self) -> None:
         """Deletes the Entry instance from Azure Table Storage.
 
         Removes the corresponding entity record using its partition and row keys.
         """
-        table_client.delete_entity(self._partition_key, self.row_key)
+        entry_table_client.delete_entity(self._partition_key, self.row_key)
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
     def _get_content_blob(self) -> Optional[str]:
@@ -128,3 +136,49 @@ class Entry(BaseModel):
         """
         response = requests.get(self.link, timeout=10)
         return response.text if response.status_code == 200 else response.raise_for_status()
+
+class AIEnrichment(BaseModel):
+    """
+    Represents an AI enrichment for an Entry object.
+    Integrates with an AI service to generate additional insights.
+    """
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, validate_assignment=True)
+    entry: Entry
+    ai_summary: Optional[str] = None
+    fk_readability: Optional[float] = None  # Flesch-Kincaid readability score
+    dc_readability: Optional[float] = None  # Dale-Chall readability score
+    engagement_score: Optional[float] = None  # Engagement score
+    engagement_categories: Optional[List[str]] = None  # Categories of engagement
+
+    @computed_field(alias="PartitionKey")
+    @property
+    def partition_key(self) -> str:
+        return self.entry.partition_key  # Using public property from Entry
+
+    @computed_field(alias="RowKey")
+    @property
+    def row_key(self) -> str:
+        return self.entry.row_key
+
+    def enrich(self) -> str:
+        """
+        Enriches the associated Entry using AI and returns a summary.
+
+        Returns:
+            str: The AI-generated summary.
+        """
+        content = self.entry.content  # Retrieve content from the Entry.
+        # ...integration with AI service to generate a summary...
+        # For simulation, generate a placeholder summary based on content length.
+        self.ai_summary = f"Summary (AI): {content[:75]}..." if content else "No content available."
+        return self.ai_summary
+
+    def save(self) -> None:
+        ai_enrichment_table_client.upsert_entity(self.model_dump())
+    
+    @classmethod
+    def create(cls, **kwargs) -> "AIEnrichment":
+        enrichment = cls(**kwargs)
+        ai_enrichment_table_client.upsert_entity(enrichment.model_dump())
+        return enrichment
+

@@ -60,3 +60,9 @@ variable "rss_entries_table" {
   type        = string
   default     = "rssEntriesTable"
 }
+
+variable "ai_enrichment_table" {
+  description = "Default name for the AI Enrichment Table."
+  type        = string
+  default     = "aiEnrichmentTable"
+}
