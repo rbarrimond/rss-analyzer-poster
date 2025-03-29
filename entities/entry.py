@@ -1,8 +1,8 @@
 """Module for RSS entry entity representation and persistence.
 
 This module defines the Entry class, which models an RSS entry with properties such as title, link, content,
-published date, updated date, author, and summary. It computes a unique identifier using xxhash and integrates
-with Azure Table Storage for create, update, delete, and serialization operations.
+published date, updated date, author, and summary. The unique identifier is computed from the entry id using xxhash
+and integrates with Azure Table Storage for create, update, delete, and serialization operations.
 """
 
 from datetime import datetime
@@ -26,13 +26,14 @@ container_client = acf.get_instance().get_blob_service_client().get_container_cl
 
 class Entry(BaseModel):
     """Represents an RSS entry entity with properties including title, link, content, published and updated timestamps,
-    author, and summary. The unique identifier (RowKey) is computed from the entry link using xxhash and is read-only.
+    author, and summary. The unique identifier (RowKey) is computed from the entry id using xxhash and is read-only.
     
     This model integrates with Azure Table Storage by mapping model fields to table entity properties via field aliases.
     """
     _partition_key: str = Field(default="entry", alias="PartitionKey")
     _row_key: Optional[str] = Field(default=None, alias="RowKey")
     title: Optional[str] = "Untitled"
+    id: str
     feed: str
     link: str
     _content: Optional[str] = Field(default=None, alias="content")
@@ -40,6 +41,7 @@ class Entry(BaseModel):
     published: datetime = datetime(1970, 1, 1)
     author: Optional[str] = None
     summary: Optional[str] = None
+    source: Optional[dict] = None
 
     class Config:
         """Pydantic configuration for the Entry model.
@@ -52,7 +54,7 @@ class Entry(BaseModel):
     @classmethod
     @model_validator(mode="before")
     def compute_row_key(cls, data):
-        """Computes the unique identifier (RowKey) for the entry based on its link.
+        """Computes the unique identifier (RowKey) for the entry based on its id.
 
         Args:
             data (dict): Dictionary of Entry data.
@@ -60,8 +62,8 @@ class Entry(BaseModel):
         Returns:
             dict: Updated data dictionary with computed '_row_key' if not provided.
         """
-        if 'link' in data and not data.get('_row_key'):
-            data['_row_key'] = xxhash.xxh64(data['link']).hexdigest()
+        if 'id' in data and not data.get('_row_key'):
+            data['_row_key'] = xxhash.xxh64(data['id']).hexdigest()
         return data
 
     @property
