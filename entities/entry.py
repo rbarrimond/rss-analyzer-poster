@@ -110,8 +110,6 @@ class Entry(BaseModel):
             text (str): The content to set.
         """
         self._content = xxhash.xxh64(text).hexdigest()
-        self.save()
-
         self._content_cache = text
         container_client.get_blob_client(blob=f"{self._partition_key}/{self._content}.txt",
                                         ).upload_blob(text, overwrite=True)
