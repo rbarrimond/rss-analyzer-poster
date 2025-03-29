@@ -127,8 +127,4 @@ class Entry(BaseModel):
             str: The content retrieved from the URL.
         """
         response = requests.get(self.link, timeout=10)
-        if response.status_code == 200:
-            return response.text
-        else:
-            logger.error("Failed to retrieve content from %s: %s", self.link, response.status_code)
-            response.raise_for_status()
+        return response.text if response.status_code == 200 else response.raise_for_status()
