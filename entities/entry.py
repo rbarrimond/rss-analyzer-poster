@@ -92,13 +92,15 @@ class Entry(BaseModel):
             Optional[str]: The content of the entry as a string.
         """
         if not self._content_cache:
-            content = self._get_content_blob()
-            if not content:
-                content = self._get_content_http()  # Updated function call
-        if not content:
-            raise ValueError("Content is not available.")
-        self.content = content
-        return content
+            text = self._get_content_blob()
+            if not text:
+                text = self._get_content_http()  # Attempt to download from the link
+            if not text:
+                raise ValueError("Content is not available.")
+            # Set _content to the hash of the text and cache the text
+            self._content = xxhash.xxh64(text).hexdigest()
+            self._content_cache = text
+        return self._content_cache
     
     @content.setter
     def content(self, text: str) -> None:
