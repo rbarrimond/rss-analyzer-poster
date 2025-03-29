@@ -88,6 +88,7 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "MODEL_EMBEDDING_DEEP"               = azurerm_cognitive_deployment.text_embedding3_large.name
     "RSS_FEED_TABLE_NAME"                = azurerm_storage_table.rss_feed_table.name
     "RSS_ENTRIES_TABLE_NAME"             = azurerm_storage_table.rss_entries_table.name
+    "RSS_ENTRIES_CONTAINER_NAME"         = azurerm_storage_container.rss_entries_container.name
     "RSSAP_TENANT_ID"                    = var.tenant_id
     "RSSAP_CLIENT_ID"                    = azuread_application.rss_feed_analyzer.client_id
     "RSSAP_CLIENT_SECRET"                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_secret.versionless_id})"

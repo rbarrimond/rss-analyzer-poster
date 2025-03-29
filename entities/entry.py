@@ -11,11 +11,18 @@ import os
 
 import xxhash
 from pydantic import BaseModel, Field, model_validator
+import requests
 
 from utils.azclients import AzureClientFactory as acf
+from utils.decorators import log_and_return_default
+from utils.logger import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__)
 
 TABLE_NAME = os.getenv("RSS_ENTRY_TABLE_NAME", "entries")
+CONTAINER_NAME = os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
 table_client = acf.get_instance().get_table_service_client().get_table_client(table_name=TABLE_NAME)
+container_client = acf.get_instance().get_blob_service_client().get_container_client(container_name=CONTAINER_NAME)
 
 class Entry(BaseModel):
     """Represents an RSS entry entity with properties including title, link, content, published and updated timestamps,
@@ -26,8 +33,10 @@ class Entry(BaseModel):
     _partition_key: str = Field(default="entry", alias="PartitionKey")
     _row_key: Optional[str] = Field(default=None, alias="RowKey")
     title: Optional[str] = "Untitled"
+    feed: str
     link: str
-    content: Optional[str] = None
+    _content: Optional[str] = Field(default=None, alias="content")
+    _content_cache: Optional[str] = None
     published: datetime = datetime(1970, 1, 1)
     updated: datetime = datetime(1970, 1, 1)
     author: Optional[str] = None
@@ -74,6 +83,37 @@ class Entry(BaseModel):
         """
         raise AttributeError("This property is read-only and cannot be set.")
     
+    @log_and_return_default(default_value=None, message="Failed to retrieve content")
+    @property
+    def content(self) -> Optional[str]:
+        """Returns the content of the entry.
+        
+        Returns:
+            Optional[str]: The content of the entry as a string.
+        """
+        if not self._content_cache:
+            content = self._get_content_blob()
+            if not content:
+                content = self._get_content_http()  # Updated function call
+        self._content_cache = content
+        if not self._content_cache:
+            raise ValueError("Content is not available.")
+        return self._content_cache
+    
+    @content.setter
+    def content(self, text: str) -> None:
+        """Sets the content of the entry.
+        
+        Args:
+            text (str): The content to set.
+        """
+        self._content = xxhash.xxh64(text).hexdigest()
+        self.save()
+
+        self._content_cache = text
+        container_client.get_blob_client(blob=f"{self._partition_key}/{self._content}.txt",
+                                        ).upload_blob(text, overwrite=True)
+
     @classmethod
     def create(cls, **kwargs) -> "Entry":
         """Creates and persists an Entry instance in Azure Table Storage.
@@ -121,3 +161,32 @@ class Entry(BaseModel):
             Entry: The reconstructed Entry instance.
         """
         return cls.model_validate_json(json_str)
+
+    @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
+    def _get_content_blob(self) -> Optional[str]:
+        """Retrieves the content blob from Azure Blob Storage.
+
+        Returns:
+            str: The content blob as a string.
+        """
+        blob = acf.get_instance().download_blob_content(
+            container_client=container_client,
+            blob_name=f"{self._partition_key}/{self._content}.txt",
+        )
+        return blob
+    
+    @log_and_return_default(default_value=None, message="Failed to retrieve content")
+    def _get_content_http(self) -> Optional[str]:  # Renamed function
+        """Retrieves the content from the entry's content URL.
+
+        Returns:
+            str: The content retrieved from the URL.
+        """
+        if not self._content_cache:
+            return None
+        response = requests.get(self.link, timeout=10)
+        if response.status_code == 200:
+            return response.text
+        else:
+            logger.error("Failed to retrieve content from %s: %s", self.link, response.status_code)
+            response.raise_for_status()
