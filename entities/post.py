@@ -6,15 +6,19 @@ It includes:
 - A computed 'row_key' that is a hash of the title, content, and draft_date.
 """
 from datetime import datetime, timezone
+import os
 from typing import List, Literal, Optional
 
 import markdown
 import xxhash
-from pydantic import (BaseModel, ConfigDict, Field, computed_field,
-                      field_validator)
+from pydantic import (BaseModel, ConfigDict, Field, computed_field, field_validator)
 
+from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error
 
+post_table_client = acf.get_instance().get_table_service_client().get_table_client(
+    table_name=os.getenv("POST_TABLE_NAME", "posts")
+)
 
 class Post(BaseModel):
     """Represents a blog post with optional AI enrichment.
@@ -103,6 +107,7 @@ class Post(BaseModel):
             return self.draft_date.strftime("%Y-%m")
         raise AttributeError("draft_date must be a datetime object")
 
+    @log_and_raise_error(message="Error in Post entity. Row key not valid.")
     @computed_field(alias="RowKey", description="Row key computed as hash of original drafted post")
     @property
     def row_key(self) -> str:
@@ -111,12 +116,21 @@ class Post(BaseModel):
         Returns:
             str: A hash value representing the unique key for the post.
         """
-        title = self.title or ""
-        content = self.content or ""
-        date_str = self.draft_date.isoformat() if self.draft_date else ""
-        post_repr = f"{title}_{content}_{date_str}"
-        return xxhash.xxh64(post_repr).hexdigest()
-
+        if all(self.title, self.content, isinstance(self.draft_date, datetime)):
+            return xxhash.xxh64(f"{self.title}_{self.content}_{self.draft_date.isoformat()}").hexdigest()
+        raise AttributeError("title, content, and draft_date must be provided")
+    
     def save(self) -> None:
-        """Saves the post entity and its associated records to the database."""
-        self.entry.save()
+        """Saves the post entity to the Azure Table Storage posts table."""
+        post_table_client.upsert_entity(self.model_dump())
+    
+    def delete(self) -> None:
+        """Deletes the Post instance from Azure Table Storage."""
+        post_table_client.delete_entity(self.partition_key, self.row_key)
+    
+    @classmethod
+    def create(cls, **kwargs) -> "Post":
+        """Creates and persists a Post instance in Azure Table Storage."""
+        post = cls(**kwargs)
+        post.save()
+        return post
