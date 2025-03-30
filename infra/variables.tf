@@ -46,7 +46,7 @@ variable "config_container" {
 variable "rss_entries_container" {
   description = "Default name for the RSS entries container."
   type        = string
-  default     = "rssEntries"
+  default     = "rssentries"
 }
 
 variable "rss_feed_table" {
