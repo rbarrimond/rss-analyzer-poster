@@ -90,6 +90,7 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "RSS_ENTRIES_TABLE_NAME"             = azurerm_storage_table.rss_entries_table.name
     "RSS_ENTRIES_CONTAINER_NAME"         = azurerm_storage_container.rss_entries_container.name
     "AI_ENRICHMENT_TABLE_NAME"           = azurerm_storage_table.ai_enrichment_table.name
+    "POST_TABLE_NAME"                    = azurerm_storage_table.post_table.name
     "RSSAP_TENANT_ID"                    = var.tenant_id
     "RSSAP_CLIENT_ID"                    = azuread_application.rss_feed_analyzer.client_id
     "RSSAP_CLIENT_SECRET"                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_secret.versionless_id})"

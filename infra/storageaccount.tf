@@ -87,6 +87,15 @@ resource "azurerm_storage_table" "ai_enrichment_table" {
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
+# Create an Azure Storage Table for Posts
+# This table is used to store RSS posts.
+# It is stored in the general-purpose storage account.
+
+resource "azurerm_storage_table" "post_table" {
+  name                 = var.post_table
+  storage_account_name = azurerm_storage_account.strg_storageaccount.name
+}
+
 # Create an Azure Storage Account for Function App Deployment
 # This storage account is specifically used for storing internal data and logs
 # for the function app. It uses Local Redundant Storage (LRS) for cost efficiency.

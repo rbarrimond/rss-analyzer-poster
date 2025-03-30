@@ -66,3 +66,9 @@ variable "ai_enrichment_table" {
   type        = string
   default     = "aiEnrichmentTable"
 }
+
+variable "post_table" {
+  description = "Default name for the Posts table."
+  type        = string
+  default     = "postsTable"
+}
