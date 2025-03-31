@@ -1,8 +1,10 @@
 """Module for RSS entry entity representation and persistence.
 
-This module defines the Entry class, which models an RSS entry with properties such as title, link, content,
-published date, updated date, author, and summary. The unique identifier is computed from the entry id using xxhash
-and integrates with Azure Table Storage for create, update, delete, and serialization operations.
+This module defines the Entry and AIEnrichment classes.
+Entry models an RSS entry with properties such as title, link, and content.
+The content is retrieved using a caching mechanism, hashed via xxhash,
+and stored in Azure Blob Storage. AIEnrichment handles AI-based enhancements,
+including summaries, readability scores, engagement data, and embeddings kept as numpy arrays.
 """
 
 from datetime import datetime
@@ -11,6 +13,8 @@ import os
 import io
 
 import xxhash
+from azure.data.tables import TableClient
+from azure.storage.blob import ContainerClient
 from pydantic import BaseModel, Field, computed_field, HttpUrl, ConfigDict
 import requests
 import numpy as np
@@ -18,28 +22,33 @@ import numpy as np
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_return_default, retry_on_failure
 
-ENTRY_TABLE_NAME = os.getenv("RSS_ENTRY_TABLE_NAME", "entries")
-CONTAINER_NAME = os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
-AI_ENRICHMENT_TABLE_NAME = os.getenv("AI_ENRICHMENT_TABLE_NAME", "ai_enrichment")
-entry_table_client = acf.get_instance().get_table_service_client().get_table_client(table_name=ENTRY_TABLE_NAME)
-ai_enrichment_table_client = acf.get_instance().get_table_service_client().get_table_client(table_name=AI_ENRICHMENT_TABLE_NAME)
-container_client = acf.get_instance().get_blob_service_client().get_container_client(container_name=CONTAINER_NAME)
+entry_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
+    table_name=os.getenv("RSS_ENTRY_TABLE_NAME", "entries")
+    )
+
+ai_enrichment_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
+    table_name=os.getenv("AI_ENRICHMENT_TABLE_NAME", "ai_enrichment")
+    )
+
+container_client: ContainerClient = acf.get_instance().get_blob_service_client().get_container_client(
+    container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
+    )
 
 class Entry(BaseModel):
     """Represents an RSS entry entity.
 
-    Public Attributes:
-        partition_key (str): Partition key for Azure Table Storage.
-        title (str): Title of the entry.
-        id (str): Internal unique identifier of the entry.
-        feed_key (str): RowKey of the feed (16 hex characters).
-        link (HttpUrl): URL link to the entry.
-        published (datetime): Published date of the entry.
-        author (Optional[str]): Author of the entry.
-        summary (Optional[str]): Summary of the entry.
-        source (Optional[dict]): Source information for the entry.
-        content (Optional[str]): Content of the entry (retrieved via blob or HTTP).
-        row_key (str): Computed row key derived from the entry's id using xxhash.
+    Attributes:
+        partition_key: Partition key for Azure Table Storage.
+        title: Title of the entry.
+        id: Internal unique identifier of the entry.
+        feed_key: RowKey of the feed (16 hex characters).
+        link: URL link to the entry.
+        published: Published date of the entry.
+        author: Author of the entry.
+        summary: Summary of the entry.
+        source: Source information for the entry.
+        content: Content of the entry; retrieved from Azure Blob Storage if cached, otherwise via HTTP.
+        row_key: Computed row key derived from the entry's id using xxhash.
     """
     model_config = ConfigDict(populate_by_name=True, from_attributes=True, validate_assignment=True)
     
@@ -50,7 +59,7 @@ class Entry(BaseModel):
         description="Partition key (alphanumeric, dash, underscore only) to ensure a valid blob path."
         )
     title: str = Field(
-        default="Untitled", 
+        default="Untitled",
         alias="Title",
         min_length=1,
         max_length=200,
@@ -119,10 +128,10 @@ class Entry(BaseModel):
     @log_and_return_default(default_value=None, message="Failed to retrieve content")
     @property
     def content(self) -> Optional[str]:
-        """Returns the content of the entry.
-        
-        Returns:
-            Optional[str]: The content of the entry as a string.
+        """Retrieve the content of the entry.
+
+        Uses cached content if available. If not, attempts to load from Azure Blob Storage;
+        if that fails, fetches via HTTP, computes a hash for the text, caches it, and then returns it.
         """
         if not self._content_cache:
             text = self._get_content_blob()
@@ -137,16 +146,17 @@ class Entry(BaseModel):
 
     def __setattr__(self, name, value):
         """
-        Override __setattr__ to customize assignment handling for the 'content' attribute.
-        
-        When 'content' is set, its value is hashed and cached, and the full text is uploaded to Azure Blob Storage.
-        For all other attributes, default assignment is used.
+        Customize attribute assignment.
+
+        For the 'content' attribute, computes its hash, caches the content, and uploads it to Azure Blob Storage
+        under a path based on the partition key and the computed content hash.
+        Standard assignment is performed for other attributes.
         """
         if name == "content":
             hashed = xxhash.xxh64(value).hexdigest()
             object.__setattr__(self, "_content_key", hashed)
             object.__setattr__(self, "_content_cache", value)
-            container_client.get_blob_client(blob=f"{self._partition_key}/{hashed}.txt").upload_blob(value, overwrite=True)
+            container_client.get_blob_client(blob=f"{self.partition_key}/{hashed}.txt").upload_blob(value, overwrite=True)
         else:
             super().__setattr__(name, value)
 
@@ -176,19 +186,18 @@ class Entry(BaseModel):
 
         Removes the corresponding entity record using its partition and row keys.
         """
-        entry_table_client.delete_entity(self._partition_key, self.row_key)
+        entry_table_client.delete_entity(self.partition_key, self.row_key)
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
     def _get_content_blob(self) -> Optional[str]:
         """
         Retrieve the content blob from Azure Blob Storage.
-        
-        Returns:
-            Optional[str]: The downloaded content as a string if available, otherwise None.
+
+        The blob is identified by a combination of the partition key and the content key.
         """
         blob = acf.get_instance().download_blob_content(
             container_client=container_client,
-            blob_name=f"{self._partition_key}/{self._content_key}.txt",
+            blob_name=f"{self.partition_key}/{self._content_key}.txt",
         )
         return blob
     
@@ -196,10 +205,10 @@ class Entry(BaseModel):
     @retry_on_failure(retries=3, delay=2000)
     def _get_content_http(self) -> Optional[str]:
         """
-        Retrieve the content via HTTP from the provided content URL.
-        
-        Returns:
-            Optional[str]: The content retrieved from the URL if successful, otherwise raises an HTTP error.
+        Retrieve the content via HTTP from the entry's link.
+
+        Attempts to download the entry content with a timeout. If the response status is 200, returns the text;
+        otherwise, raises an HTTP error.
         """
         response = requests.get(self.link, timeout=10)
         return response.text if response.status_code == 200 else response.raise_for_status()
@@ -207,16 +216,16 @@ class Entry(BaseModel):
 class AIEnrichment(BaseModel):
     """Represents an AI enrichment entity associated with an RSS entry.
 
-    Public Attributes:
-        entry (Entry): The associated RSS entry.
-        summary (Optional[str]): AI generated summary.
-        grade_level (Optional[float]): Flesch-Kincaid readability score (0 = easiest, 12 = high school, 15+ = complex academic text).
-        difficulty (Optional[float]): Dale-Chall readability score (4.9 = easy, 8.0 = difficult, 10+ = very difficult).
-        engagement_score (Optional[float]): Engagement score for the entry.
-        engagement_categories (Optional[List[Literal['Liked', 'Comment', 'Shared']]]): Categories of engagement.
-        embeddings (Optional[np.ndarray]): AI-generated embeddings (retrieved from blob storage).
-        partition_key (str): Inherited partition key from the associated entry.
-        row_key (str): Computed row key based on the associated entry's id.
+    Attributes:
+        entry: The associated RSS entry.
+        summary: AI-generated summary of the entry.
+        grade_level: Flesch-Kincaid readability score.
+        difficulty: Dale-Chall readability score.
+        engagement_score: Engagement score for the entry.
+        engagement_categories: List of engagement categories (e.g., 'Liked', 'Comment', 'Shared').
+        embeddings: AI-generated embeddings as a numpy array; retrieved from Azure Blob Storage if not already cached.
+        partition_key: Inherited partition key from the associated entry.
+        row_key: Computed row key derived from the associated entry's id.
     """
     model_config = ConfigDict(populate_by_name=True, from_attributes=True, validate_assignment=True)
     
@@ -284,7 +293,11 @@ class AIEnrichment(BaseModel):
     @log_and_return_default(default_value=None, message="Failed to retrieve embeddings")
     @property
     def embeddings(self) -> Optional[np.ndarray]:
-        """Returns the embeddings of the entry."""
+        """Retrieve the AI-generated embeddings.
+
+        Returns the embeddings numpy array from cache if available;
+        otherwise, loads it from Azure Blob Storage.
+        """
         if self._embeddings_cache is None:
             data = self._get_embeddings_blob()
             if data is None:
@@ -294,10 +307,11 @@ class AIEnrichment(BaseModel):
 
     def __setattr__(self, name, value):
         """
-        Override __setattr__ to handle assignment for the 'embeddings' property.
-        
-        When 'embeddings' is set, the numpy array is saved to a bytes buffer,
-        hashed, cached, and then uploaded to Azure Blob Storage.
+        Customize attribute assignment for embeddings.
+
+        When setting 'embeddings', the numpy array is serialized, hashed, cached, and
+        uploaded to Azure Blob Storage under a path based on the partition key and computed hash.
+        Standard assignment is performed for all other attributes.
         """
         if name == "embeddings":
             buf = io.BytesIO()
@@ -343,9 +357,9 @@ class AIEnrichment(BaseModel):
     def _get_embeddings_blob(self) -> Optional[np.ndarray]:
         """
         Retrieve and load the embeddings numpy array from Azure Blob Storage.
-        
-        Returns:
-            Optional[np.ndarray]: The embeddings array if successfully retrieved, otherwise None.
+
+        Loads the numpy array from a blob identified by the partition key and embeddings key,
+        returning None if the blob is not available.
         """
         blob_bytes = acf.get_instance().download_blob_content(
             container_client=container_client,

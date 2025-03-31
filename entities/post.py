@@ -11,14 +11,16 @@ from typing import List, Literal, Optional
 
 import markdown
 import xxhash
+from azure.data.tables import TableClient
 from pydantic import (BaseModel, ConfigDict, Field, computed_field, field_validator)
 
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error
 
-post_table_client = acf.get_instance().get_table_service_client().get_table_client(
+post_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
     table_name=os.getenv("POST_TABLE_NAME", "posts")
 )
+post_table_client.create_table_if_not_exists()
 
 class Post(BaseModel):
     """Represents a blog post with optional AI enrichment.
@@ -35,7 +37,8 @@ class Post(BaseModel):
         row_key (str): A unique hash computed from the title, content, and draft_date.
     """
     model_config = ConfigDict(populate_by_name=True,
-                              from_attributes=True, validate_assignment=True)
+                              from_attributes=True,
+                              validate_assignment=True)
 
     title: Optional[str] = Field(
         default=None,
