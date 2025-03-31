@@ -21,19 +21,12 @@ resource "azurerm_storage_account" "strg_storageaccount" {
   account_tier                  = "Standard"
   account_replication_type      = "LRS"
 
-  # Enable private access settings for the storage account
-  public_network_access_enabled = false
-  network_rules {
-    default_action             = "Deny"
-    bypass                     = ["AzureServices"]
-  }
-
   tags = { 
     azd-env-name = var.resource_suffix 
   }
 }
 
-# Assign Storage Table Data Contributor role to admin
+# Assign role to admin
 resource "azurerm_role_assignment" "admin_storage_table_data_contributor" {
   principal_id         = var.admin_object_id
   role_definition_name = "Storage Table Data Contributor"
@@ -118,4 +111,3 @@ resource "azurerm_storage_account" "strg_funcdep" {
     azd-env-name = var.resource_suffix 
   }
 }
-
