@@ -25,9 +25,9 @@ logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 app = func.FunctionApp()
 
 
+@log_and_ignore_error("enque_rss_feeds function failed.")
 @app.function_name(name="enqueueRssFeeds")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
-@log_and_ignore_error("enque_rss_feeds function failed.")
 def enqueue_rss_feeds(myTimer: func.TimerRequest) -> None:
     """
     Scheduled function triggered at 6 AM UTC daily.
@@ -48,13 +48,13 @@ def enqueue_rss_feeds(myTimer: func.TimerRequest) -> None:
     logger.info('RSS Ingestion Service completed.')
 
 
-@app.function_name(name="enqueueRssFeedsHttp")
-@app.route(route="rss/enqueue", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 @log_and_return_default(
     func.HttpResponse('{"error": "Failed to enque RSS feeds."}',
                       status_code=500, mimetype="application/json"),
     message="enque_rss_feeds_http function failed."
 )
+@app.function_name(name="enqueueRssFeedsHttp")
+@app.route(route="rss/enqueue", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered function to enqueue RSS feeds.
@@ -78,13 +78,13 @@ def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
     return func.HttpResponse('{"message": "RSS feeds enqueued successfully."}', status_code=200, mimetype="application/json")
 
 
-@app.function_name(name="updateLogLevel")
-@app.route(route="logs/update", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 @log_and_return_default(
     func.HttpResponse('{"error": "Log level update failed."}',
                       status_code=500, mimetype="application/json"),
     message="update_log_level function failed."
 )
+@app.function_name(name="updateLogLevel")
+@app.route(route="logs/update", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 def update_log_level(req: HttpRequest) -> HttpResponse:
     """
     HTTP-triggered function to update the logging level.
