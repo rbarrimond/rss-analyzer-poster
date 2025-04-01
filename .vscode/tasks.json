@@ -12,7 +12,7 @@
 		{
 			"type": "func",
 			"label": "func: host start verbose",
-			"command": "host start --verbose",
+			"command": "host start --verbose true",
 			"problemMatcher": "$func-python-watch",
 			"isBackground": true,
 			"dependsOn": "pip install (functions)"
