@@ -175,3 +175,8 @@ o365_token.json
 
 # Dev Requirements
 requirements-dev.txt
+
+# Local Certificates
+*.pem
+*.crt
+*.key
