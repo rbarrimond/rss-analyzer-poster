@@ -28,7 +28,7 @@ import json
 from azure.core.exceptions import ClientAuthenticationError
 from azure.ai.inference import ChatCompletionsClient
 from azure.identity import DefaultAzureCredential
-from azure.storage.blob.aio import BlobServiceClient
+from azure.storage.blob import BlobServiceClient
 from azure.data.tables import TableServiceClient
 from azure.storage.queue import QueueServiceClient
 
