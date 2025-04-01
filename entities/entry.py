@@ -21,6 +21,9 @@ import numpy as np
 
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_return_default, retry_on_failure
+from utils.logger import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
 entry_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
     table_name=os.getenv("RSS_ENTRY_TABLE_NAME", "entries")
