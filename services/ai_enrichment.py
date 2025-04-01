@@ -34,8 +34,9 @@ import xxhash
 from azure.ai.inference import ChatCompletionsClient
 
 from utils.azclients import AzureClientFactory as acf
+from utils.decorators import (log_and_raise_error, log_execution_time,
+                              trace_class)
 from utils.logger import LoggerFactory
-from utils.decorators import log_and_raise_error, log_execution_time, trace_class
 
 logger = LoggerFactory.get_logger(__name__)
 
