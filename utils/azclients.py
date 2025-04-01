@@ -53,8 +53,7 @@ class AzureClientFactory:
 
     @log_and_raise_error("❌ AzureClientFactory creation failed.")
     def __init__(self):
-        if not AzureClientFactory._instance:
-            raise RuntimeError("This class is a singleton!")
+        # Initialize the instance normally without raising an error.
         self._blob_service_client: BlobServiceClient = None
         self._table_service_client: TableServiceClient = None
         self._openai_clients: Dict[str, ChatCompletionsClient] = {}
@@ -186,7 +185,7 @@ class AzureClientFactory:
             container_name = "token-container"
             blob_name = "o365_token.json"
             token_backend = BlobStorageTokenBackend(container_name, blob_name, connection_string)
-            self._o365_account = Account((os.getenv("RSSAP_CLIENT_ID"), os.getenv("RSSAP_CLIENT_SECRET")), 
+            self._o365_account = Account((os.getenv("RSSAP_CLIENT_ID"), os.getenv("RSSAP_CLIENT_SECRET")),
                                         token_backend=token_backend, tenant_id=os.getenv("RSSAP_TENANT_ID"))
             
             if not self._o365_account.authenticate():
