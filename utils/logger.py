@@ -3,12 +3,10 @@ Updated logging configuration utility module.
 """
 import os
 import logging
-from utils.decorators import log_and_ignore_error, log_and_raise_error
 
 class LoggerFactory:
     """Factory for creating and configuring loggers with standardized handlers."""
 
-    @log_and_raise_error("Failed to create logger.")
     @staticmethod
     def get_logger(module_name: str, handler_level: int | str = os.getenv('LOG_LEVEL', 'INFO'),
                    log_to_file: bool = False, file_name: str = None) -> logging.Logger:
@@ -57,7 +55,6 @@ class LoggerFactory:
         
         return logger
 
-    @log_and_ignore_error("Failed to update logger handler level.")
     @staticmethod
     def update_handler_level(logger: logging.Logger, new_level: int | str) -> None:
         """
