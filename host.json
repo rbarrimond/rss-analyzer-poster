@@ -12,8 +12,8 @@
       }
     },
     "logLevel": {
-      "default": "Information",
-      "Function": "Information"
+      "default": "Debug",
+      "Function": "Debug"
     }
   }
 }
