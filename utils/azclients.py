@@ -20,13 +20,11 @@ Functions:
     BlobStorageTokenBackend.check_token: Checks the existence of a token in Azure Blob Storage.
 """
 
-# Standard Library Imports
 import os
 import threading
 from typing import Dict
 import json
 
-# Azure SDK Imports
 from azure.core.exceptions import (ClientAuthenticationError)
 from azure.ai.inference import ChatCompletionsClient
 from azure.identity import DefaultAzureCredential
@@ -34,19 +32,15 @@ from azure.storage.blob.aio import BlobServiceClient
 from azure.data.tables import TableServiceClient
 from azure.storage.queue import QueueServiceClient
 
-# Microsoft Graph Imports
 from msgraph import GraphServiceClient
 
-# O365 & Related SDK Imports
 from O365 import Account
 from O365.utils import BaseTokenBackend
 
-# Local Application Imports
 from utils.logger import LoggerFactory
 from utils.decorators import log_and_raise_error, log_execution_time, retry_on_failure, trace_class
 
-# Configure logging using LoggerFactory
-logger = LoggerFactory.get_logger(__name__)
+logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
 @trace_class
 class AzureClientFactory:
