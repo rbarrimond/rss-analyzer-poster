@@ -14,10 +14,10 @@ from azure.functions import HttpRequest, HttpResponse
 
 from utils.decorators import log_and_ignore_error, log_and_return_default
 from utils.logger import LoggerFactory
-from services.rss_queueing_service import RssQueueingService
+from services.rss import RssIngestionService
 
 # Configure logging
-logger = LoggerFactory.get_logger(__name__)
+logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
 # Create the Azure Functions application instance
 app = func.FunctionApp()
@@ -25,21 +25,20 @@ app = func.FunctionApp()
 @app.function_name(name="enqueueRssFeeds")
 @app.schedule(schedule="0 0 6 * * *", arg_name="myTimer", run_on_startup=True, use_monitor=True)
 @log_and_ignore_error("enque_rss_feeds function failed.")
-def enque_rss_feeds(myTimer: func.TimerRequest) -> None:
+def enqueue_rss_feeds(myTimer: func.TimerRequest) -> None:
     """
-    Queues RSS feeds daily at 6 AM UTC.
-    
-    This function is triggered by a timer and activates RssQueueingService
-    to process the RSS feeds.
+    Scheduled function triggered at 6 AM UTC daily.
+    Invokes RssIngestionService to enqueue RSS feeds for subsequent processing.
     
     Parameters:
-        myTimer (func.TimerRequest): The timer trigger object.
-        
+        myTimer (func.TimerRequest): Timer details for the scheduled trigger.
+    
     Returns:
         None
     """
-    logger.info('RSS Queueing Service triggered.')
-    RssQueueingService().run()
+    logger.info('RSS Ingestion Service triggered.')
+    RssIngestionService().enqueue_feeds()
+    logger.info('RSS Ingestion Service completed.')
 
 @app.function_name(name="enqueueRssFeedsHttp")
 @app.route(route="rss/enqueue", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
@@ -49,19 +48,24 @@ def enque_rss_feeds(myTimer: func.TimerRequest) -> None:
 )
 def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
     """
-    HTTP endpoint for enqueuing and processing RSS feeds.
-    
-    Receives a POST request, triggers the RssQueueingService, and returns a JSON response
-    indicating whether the operation succeeded.
+    HTTP-triggered function to enqueue RSS feeds.
+    Processes a POST request by optionally extracting request data, then calls RssIngestionService to start RSS ingestion.
     
     Parameters:
         req (HttpRequest): The incoming HTTP request.
-        
+    
     Returns:
-        HttpResponse: A JSON response with a success or error message.
+        HttpResponse: JSON response indicating success or failure.
     """
-    logger.info('RSS Queueing Service triggered.')
-    RssQueueingService().run()
+    logger.info('RSS Ingestion Service triggered.')
+
+    # This is a placeholder for any future processing of the request body.
+    # Currently, it just extracts the JSON but does not use it.
+    _ = _extract_json_from_request_body(req)  # Extract JSON from request body
+    
+    RssIngestionService().enqueue_feeds()
+    logger.info('RSS Ingestion Service completed.')
+    
     return func.HttpResponse('{"message": "RSS feeds enqueued successfully."}', status_code=200, mimetype="application/json")
 
 @app.function_name(name="updateLogLevel")
@@ -72,17 +76,14 @@ def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
 )
 def update_log_level(req: HttpRequest) -> HttpResponse:
     """
-    Dynamically updates the logging level via an HTTP request.
-    
-    Accepts a POST request with a JSON payload containing the 'log_level' key. The logger's level
-    is updated based on this parameter. Returns a JSON response confirming the update or an error 
-    message if the parameter is missing.
+    HTTP-triggered function to update the logging level.
+    Reads the 'log_level' from the JSON payload and updates the logger accordingly.
     
     Parameters:
         req (HttpRequest): The incoming HTTP request containing the desired log level.
-        
+    
     Returns:
-        HttpResponse: A JSON response detailing the result of the update operation.
+        HttpResponse: JSON response confirming the update or detailing an error.
     """
     logger.info('Update Log Level HTTP triggered.')
 
@@ -96,12 +97,12 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
 @log_and_return_default(default_value={}, message="Failed to extract JSON from request.")
 def _extract_json_from_request_body(req: HttpRequest) -> dict:
     """
-    Extracts JSON data from the HTTP request body.
+    Helper function to extract JSON from an HTTP request's body.
     
     Parameters:
-        req (HttpRequest): The incoming HTTP request.
-        
+        req (HttpRequest): The HTTP request to parse.
+    
     Returns:
-        dict: Parsed JSON from the request.
+        dict: The parsed JSON content.
     """
     return req.get_json()
