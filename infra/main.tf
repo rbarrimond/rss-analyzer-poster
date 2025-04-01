@@ -88,12 +88,15 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "MODEL_EMBEDDING_DEEP"               = azurerm_cognitive_deployment.text_embedding3_large.name
     "RSS_FEEDS_TABLE_NAME"               = azurerm_storage_table.rss_feeds_table.name
     "RSS_ENTRIES_TABLE_NAME"             = azurerm_storage_table.rss_entries_table.name
-    "RSS_ENTRY_CONTAINER_NAME"           = azurerm_storage_container.rss_entries_container.name
+    "RSS_ENTRIES_CONTAINER_NAME"         = azurerm_storage_container.rss_entries_container.name
     "AI_ENRICHMENT_TABLE_NAME"           = azurerm_storage_table.ai_enrichment_table.name
-    "POST_TABLE_NAME"                    = azurerm_storage_table.post_table.name
+    "POSTS_TABLE_NAME"                   = azurerm_storage_table.posts_table.name
     "RSSAP_TENANT_ID"                    = var.tenant_id
     "RSSAP_CLIENT_ID"                    = azuread_application.rss_feed_analyzer.client_id
     "RSSAP_CLIENT_SECRET"                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.rssap_client_secret.versionless_id})"
+    "RSS_FEED_QUEUE_NAME"                = azurerm_storage_queue.rss_feed_queue.name
+    "RSS_ENTRY_QUEUE_NAME"               = azurerm_storage_queue.rss_entry_queue.name
+
   }
 
   identity {

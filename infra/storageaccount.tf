@@ -84,8 +84,19 @@ resource "azurerm_storage_table" "ai_enrichment_table" {
 # This table is used to store RSS posts.
 # It is stored in the general-purpose storage account.
 
-resource "azurerm_storage_table" "post_table" {
-  name                 = var.post_table
+resource "azurerm_storage_table" "posts_table" {
+  name                 = var.posts_table
+  storage_account_name = azurerm_storage_account.strg_storageaccount.name
+}
+
+# Create Azure Storage Queues for RSS feeds and entries
+resource "azurerm_storage_queue" "rss_feed_queue" {
+  name                 = var.rss_feed_queue
+  storage_account_name = azurerm_storage_account.strg_storageaccount.name
+}
+
+resource "azurerm_storage_queue" "rss_entry_queue" {
+  name                 = var.rss_entries_queue
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
