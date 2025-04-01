@@ -18,7 +18,7 @@ from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error
 
 post_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
-    table_name=os.getenv("POST_TABLE_NAME", "posts")
+    table_name=os.getenv("POSTS_TABLE_NAME", "posts")
 )
 post_table_client.create_table_if_not_exists()
 
