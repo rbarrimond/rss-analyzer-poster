@@ -26,7 +26,7 @@ from utils.logger import LoggerFactory
 logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
 entry_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
-    table_name=os.getenv("RSS_ENTRIES_TABLE_NAME", "entries")
+    table_name=os.getenv("RSS_ENTRY_TABLE_NAME", "entries")
     )
 
 ai_enrichment_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
@@ -34,7 +34,7 @@ ai_enrichment_table_client: TableClient = acf.get_instance().get_table_service_c
     )
 
 container_client: ContainerClient = acf.get_instance().get_blob_service_client().get_container_client(
-    container_name=os.getenv("RSS_ENTRIES_CONTAINER_NAME", "entries")
+    container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
     )
 
 class Entry(BaseModel):
