@@ -170,7 +170,9 @@ class Entry(BaseModel):
         Returns:
             Entry: The created and persisted Entry instance.
         """
-        entry = cls(**kwargs)
+        # Filter out unknown keys using updated model_fields
+        valid_kwargs = {k: v for k, v in kwargs.items() if k in Entry.model_fields.keys()}
+        entry = cls(**valid_kwargs)
         entry_table_client.upsert_entity(entry.model_dump())
         return entry
 
@@ -343,7 +345,9 @@ class AIEnrichment(BaseModel):
         Returns:
             AIEnrichment: The created and persisted instance.
         """
-        enrichment = cls(**kwargs)
+        # Filter out unknown keys using updated model_fields
+        valid_kwargs = {k: v for k, v in kwargs.items() if k in AIEnrichment.model_fields.keys()}
+        enrichment = cls(**valid_kwargs)
         ai_enrichment_table_client.upsert_entity(enrichment.model_dump())
         return enrichment
 
@@ -368,4 +372,3 @@ class AIEnrichment(BaseModel):
         if blob_bytes:
             return np.load(io.BytesIO(blob_bytes))
         return None
-

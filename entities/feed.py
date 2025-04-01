@@ -21,12 +21,22 @@ table_client: TableClient = acf.get_instance().get_table_service_client().get_ta
 
 class Feed(BaseModel):
     """
-    Represents an RSS feed entity for Azure Table Storage operations.
+    Represents an RSS feed entity stored in Azure Table Storage.
 
-    This model includes properties such as link, name, language, publisher, and update timestamp.
-    A unique identifier (row key) is computed automatically from the feed link using xxhash.
-    The model is configured to map its fields to the corresponding Azure Table Storage entity
-    properties via field aliases.
+    This class encapsulates the properties and behaviors of an RSS feed, including creation,
+    persistence, and deletion operations. A unique row key is computed using xxhash based on the feed link,
+    ensuring consistency when interacting with the storage table.
+
+    Attributes:
+        name (Optional[str]): The feed's display name (1-200 characters). Defaults to "Unknown Name".
+        link (HttpUrl): The URL of the RSS feed (1-500 characters). Must be a valid HTTP or HTTPS link.
+        language (Optional[str]): ISO language code for the feed (e.g., "en" or "en-US").
+        publisher (Optional[str]): The publisher of the feed (1-200 characters).
+        rights (Optional[str]): Rights information associated with the feed (1-500 characters).
+        updated (datetime): Timestamp of the last update (default represents the Unix epoch).
+        image (Optional[dict]): A dictionary containing image details associated with the feed.
+        subtitle (Optional[str]): A subtitle or brief description of the feed (1-500 characters).
+        row_key (str): Public computed property; unique identifier for the feed derived from its link via xxhash.
     """
     model_config = ConfigDict(
         populate_by_name=True,
@@ -115,7 +125,9 @@ class Feed(BaseModel):
         Returns:
             Feed: The created and persisted Feed instance.
         """
-        feed = cls(**kwargs)
+        # Filter out unknown keys using updated model_fields
+        valid_kwargs = {k: v for k, v in kwargs.items() if k in Feed.model_fields.keys()}
+        feed = cls(**valid_kwargs)
         table_client.upsert_entity(feed.model_dump())
         return feed
 
