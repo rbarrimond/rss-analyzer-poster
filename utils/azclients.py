@@ -25,7 +25,7 @@ import threading
 from typing import Dict
 import json
 
-from azure.core.exceptions import (ClientAuthenticationError)
+from azure.core.exceptions import ClientAuthenticationError
 from azure.ai.inference import ChatCompletionsClient
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob.aio import BlobServiceClient

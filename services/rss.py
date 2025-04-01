@@ -4,25 +4,26 @@ This module handles the loading of configuration, conditional HTTP checking of R
 and enqueuing updated feeds (with entry IDs) into an Azure Queue for downstream processing.
 """
 
-from datetime import datetime, timezone
-from email.utils import format_datetime
 import json
 import os
-import feedparser
-from feedparser import FeedParserDict
-import requests
-import re 
-from azure.storage.queue import QueueClient
+import re
+from datetime import datetime, timezone
+from email.utils import format_datetime
 from typing import List, Tuple
 
+import feedparser
+import requests
+from azure.storage.queue import QueueClient
+from feedparser import FeedParserDict
+
+from entities.entry import Entry
+from entities.feed import Feed
 from utils.azclients import AzureClientFactory as acf
 from utils.config import ConfigLoader
 from utils.decorators import (log_and_raise_error, log_and_return_default,
                               log_execution_time, retry_on_failure,
                               trace_class)
 from utils.logger import LoggerFactory
-from entities.entry import Entry
-from entities.feed import Feed
 
 logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
