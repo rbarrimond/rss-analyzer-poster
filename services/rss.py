@@ -58,15 +58,15 @@ class RssIngestionService:
             ValueError: When mandatory configuration values (feeds, queue name, or queue client) are absent.
         """
         config: dict = ConfigLoader().RssIngestionService
-        self.feed_urls: list = config.get('feeds', [])
+        self.feeds: list = config.get('feeds', [])
         self.last_ingestion: datetime = config.get('last_ingestion', EPOCH_RFC1123)
 
-        if not self.feed_urls:
-            logger.debug("Missing configuration values: feeds=%s", self.feed_urls)
+        if not self.feeds:
+            logger.debug("Missing configuration values: feeds=%s", self.feeds)
             raise ValueError("Missing required configuration values.")
 
     @log_execution_time()
-    @log_and_raise_error("RSS Queueing Service failed.")
+    @log_and_raise_error("RSS Ingestion Service failed to enqueue feeds.")
     def enqueue_feeds(self):
         """
         Process each configured RSS feed by checking for updates and enqueuing updated feeds.
@@ -76,10 +76,10 @@ class RssIngestionService:
         After processing, the last_run timestamp is updated in the configuration.
         """
         queue_client: QueueClient = acf.get_instance().get_queue_service_client(
-            ).get_client(os.getenv('RSS_FEED_QUEUE_NAME'))
+            ).get_queue_client(os.getenv('RSS_FEED_QUEUE_NAME'))
 
-        for feed_url in self.feed_urls:
-            if self._check_feed_for_update(feed_url, self.last_ingestion):
+        for feed in self.feeds:
+            if self._check_feed_for_update(feed['url'], self.last_ingestion):
 
                 payload = {
                     "envelope": {
@@ -87,14 +87,14 @@ class RssIngestionService:
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "eTag": None
                     },
-                    "feed": feed_url,
+                    "feed": feed,
                 }
 
                 message = queue_client.send_message(json.dumps(payload))
 
-                logger.info("RSS Queueing Service enqueued feed: %s", feed_url)
+                logger.info("RSS Queueing Service enqueued feed: %s", str(feed))
                 logger.debug("Enqueued feed: %s, message_id: %s, eTag: %s",
-                             feed_url, message.id, message.get('_etag'))
+                             str(feed), message.id, message.get('_etag'))
 
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
