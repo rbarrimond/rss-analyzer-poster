@@ -1,13 +1,31 @@
 {
-    "RssQueueingService": {
-        "feeds": [
-            "http://feeds.bbci.co.uk/news/rss.xml",
-            "http://feeds.reuters.com/reuters/UKTopNews"
-        ],
-        "queue": "rss-queue"
-    },
     "RssIngestionService": {
-        "endpoint": "http://dummy-ingestion-url"
-        // ...other dummy properties...
+        "feeds": [
+            {
+                "name": "Dummy Feed",
+                "url": "https://example.com/feed",
+                "type": "rss"
+            }, 
+            {
+                "name": "Dummy Feed 2",
+                "url": "https://example.com/feed2",
+                "type": "rss"
+            },
+            {
+                "name": "Dummy Feed 3",
+                "url": "https://example.com/feed3",
+                "type": "rss"
+            },
+            {
+                "name": "Dummy Feed 4",
+                "url": "https://example.com/feed4",
+                "type": "rss"
+            },
+            {
+                "name": "Dummy Feed 5",
+                "url": "https://example.com/feed5",
+                "type": "rss"
+            }
+        ]
     }
 }
