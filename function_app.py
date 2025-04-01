@@ -40,6 +40,10 @@ def enqueue_rss_feeds(myTimer: func.TimerRequest) -> None:
         None
     """
     logger.info('RSS Ingestion Service triggered.')
+
+    _ = myTimer  # This is a placeholder for any future processing of the timer details.
+    # Currently, it just logs the timer details but does not use them.
+
     RssIngestionService().enqueue_feeds()
     logger.info('RSS Ingestion Service completed.')
 
@@ -66,7 +70,7 @@ def enque_rss_feeds_http(req: HttpRequest) -> HttpResponse:
 
     # This is a placeholder for any future processing of the request body.
     # Currently, it just extracts the JSON but does not use it.
-    _ = _extract_json_from_request_body(req)  # Extract JSON from request body
+    _ = _extract_json_from_request_body(req)
 
     RssIngestionService().enqueue_feeds()
     logger.info('RSS Ingestion Service completed.')
