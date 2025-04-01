@@ -57,8 +57,8 @@ resource "azurerm_storage_container" "rss_entries_container" {
 # This table is used to store information about RSS feeds.
 # It is stored in the general-purpose storage account.
 
-resource "azurerm_storage_table" "rss_feed_table" {
-  name                 = var.rss_feed_table
+resource "azurerm_storage_table" "rss_feeds_table" {
+  name                 = var.rss_feeds_table
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 

@@ -86,8 +86,8 @@ resource "azurerm_linux_function_app" "rss_analyzer_poster" {
     "MODEL_RANKING"                      = azurerm_cognitive_deployment.gpt35_turbo.name
     "MODEL_EMBEDDING_FAST"               = azurerm_cognitive_deployment.text_embedding3_small.name
     "MODEL_EMBEDDING_DEEP"               = azurerm_cognitive_deployment.text_embedding3_large.name
-    "RSS_FEED_TABLE_NAME"                = azurerm_storage_table.rss_feed_table.name
-    "RSS_ENTRY_TABLE_NAME"               = azurerm_storage_table.rss_entries_table.name
+    "RSS_FEEDS_TABLE_NAME"               = azurerm_storage_table.rss_feeds_table.name
+    "RSS_ENTRIES_TABLE_NAME"             = azurerm_storage_table.rss_entries_table.name
     "RSS_ENTRY_CONTAINER_NAME"           = azurerm_storage_container.rss_entries_container.name
     "AI_ENRICHMENT_TABLE_NAME"           = azurerm_storage_table.ai_enrichment_table.name
     "POST_TABLE_NAME"                    = azurerm_storage_table.post_table.name

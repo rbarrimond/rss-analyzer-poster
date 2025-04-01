@@ -49,26 +49,40 @@ variable "rss_entries_container" {
   default     = "rssentries"
 }
 
-variable "rss_feed_table" {
+variable "rss_feeds_table" {
   description = "Default name for the RSS feeds table."
   type        = string
-  default     = "rssFeedsTable"
+  default     = "rssFeeds"
 }
 
 variable "rss_entries_table" {
   description = "Default name for the RSS entries table."
   type        = string
-  default     = "rssEntriesTable"
+  default     = "rssEntries"
 }
 
 variable "ai_enrichment_table" {
   description = "Default name for the AI Enrichment Table."
   type        = string
-  default     = "aiEnrichmentTable"
+  default     = "aiEnrichment"
 }
 
 variable "post_table" {
   description = "Default name for the Posts table."
   type        = string
-  default     = "postsTable"
+  default     = "posts"
 }
+
+variable "rss_feed_queue" {
+  description = "Default name for the RSS feed queue."
+  type        = string
+  default     = "rss-feed"
+}
+
+variable "rss_entries_queue" {
+  description = "Default name for the RSS entries queue."
+  type        = string
+  default     = "rss-entry"
+}
+
+

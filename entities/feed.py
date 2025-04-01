@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field
 from utils.azclients import AzureClientFactory as acf
 
 table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
-    table_name=os.getenv("RSS_FEED_TABLE_NAME", "feeds"))
+    table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"))
 
 class Feed(BaseModel):
     """
