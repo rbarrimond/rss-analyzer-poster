@@ -43,10 +43,10 @@ class Feed(BaseModel):
         from_attributes=True,
         validate_assignment=True
     )
-    _partition_key: str = Field(
+    partition_key: str = Field(
         default="feed",
         alias="PartitionKey",
-        regex=r"^[a-zA-Z0-9_-]+$",
+        pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key for Azure Table Storage; default is 'feed'."
     )
     name: Optional[str] = Field(
@@ -65,7 +65,7 @@ class Feed(BaseModel):
     language: Optional[str] = Field(
         default=None,
         alias="Language",
-        regex=r'^[a-z]{2}(?:-[A-Z]{2})?$',
+        pattern=r'^[a-z]{2}(?:-[A-Z]{2})?$',
         description="Language code of the feed, e.g., 'en' or 'en-US'."
     )
     publisher: Optional[str] = Field(
@@ -147,4 +147,4 @@ class Feed(BaseModel):
         This method removes the feed record from the storage table using its partition key
         and computed row key.
         """
-        table_client.delete_entity(self._partition_key, self.row_key)
+        table_client.delete_entity(self.partition_key, self.row_key)

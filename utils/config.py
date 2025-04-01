@@ -3,7 +3,7 @@
 import os
 import json
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import log_and_raise_error, retry_on_failure, trace_class
+from utils.decorators import trace_class
 
 @trace_class
 class ConfigLoader:
@@ -22,7 +22,6 @@ class ConfigLoader:
     """
     _instance = None
 
-    @log_and_raise_error("Failed to initialize ConfigLoader.")
     def __new__(cls):
         """Create and return the singleton instance of ConfigLoader."""
         if cls._instance is None:
@@ -30,10 +29,8 @@ class ConfigLoader:
             cls._instance = super(ConfigLoader, cls).__new__(cls)
         return cls._instance
 
-    @log_and_raise_error("Failed to load config from blob storage.")
-    @retry_on_failure(retries=2, delay=1000)
     def __init__(self, container: str = os.environ.get("CONFIG_CONTAINER_NAME", "config"),
-                 blob_name: str = os.environ.get("CONFIG_BLOB_NAME", "app_config.json")):
+                 blob_name: str = os.environ.get("CONFIG_BLOB_NAME", "config.json")):
         """Initialize the ConfigLoader by loading JSON configuration from Azure blob storage."""
         # Avoid reloading if already initialized
         if hasattr(self, 'config_data'):
@@ -63,6 +60,10 @@ class ConfigLoader:
         Raises:
             AttributeError: If the configuration for the target class is not found.
         """
-        if name in self.config_data:
-            return self.config_data[name]
+        try:
+            config_data = object.__getattribute__(self, "config_data")
+        except AttributeError as e:
+            raise AttributeError("'ConfigLoader' object has no attribute 'config_data'") from e
+        if name in config_data:
+            return config_data[name]
         raise AttributeError(f"'ConfigLoader' object has no attribute '{name}'")

@@ -9,8 +9,13 @@ This module provides a collection of decorators organized into logical groups:
    - log_execution_time: Logs function execution start, parameters, and duration.
 3. Retry Decorators:
    - retry_on_failure: Retries a function when it fails, with error logging and delay.
+4. Tracing Decorators:
+   - trace_method: Traces method execution.
+   - trace_class: Applies trace_method to all non-dunder methods of a class.
 
-These decorators enhance error handling, logging, and retry capabilities.
+Note:
+    For all decorators, if the decorated function is a dunder (its name starts and ends with '__'),
+    the original function is executed without any added logging, error handling, retry, or tracing.
 """
 
 import functools
@@ -18,6 +23,10 @@ import logging
 from typing import Type, Callable, Any
 import time
 from utils.logger import LoggerFactory
+
+# Add helper to check for dunder functions
+def _is_dunder(func: Callable[..., Any]) -> bool:
+    return func.__name__.startswith("__") and func.__name__.endswith("__")
 
 # ------------------------------
 # Error Handling Decorators
@@ -29,29 +38,41 @@ def log_and_raise_error(
     exception_class: Type[Exception] = Exception
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
-    A decorator factory that wraps a function call in a try-except block, logs the error,
-    and raises a specified exception with a custom message when an unexpected error occurs.
-    
+    Decorator factory that wraps a function call in a try-except block, logs the error,
+    and raises a specified exception with a custom message.
+
     Parameters:
         message (str): Custom message to log and pass to the raised exception.
             Defaults to "An unexpected error occurred."
-        logger (logging.Logger): Logger instance to use for logging errors.
-            Defaults to a logger created for the current module at ERROR level.
-        exception_class (Type[Exception]): Exception type to be raised.
+        logger (logging.Logger): Logger instance for logging errors.
+            Defaults to a logger for the current module at ERROR level.
+        exception_class (Type[Exception]): Exception type to raise on error.
             Defaults to Exception.
-    
+
     Returns:
-        Callable: A decorator that wraps the target function.
-    
+        Callable: A decorator wrapping the target function.
+
+    Note:
+        If the target function is a dunder (e.g., __str__), the decorator bypasses logging
+        and calls the original function.
+
     Example:
-        @log_and_raise_error("An error occurred in process_data.")
+        @log_and_raise_error("Failed to process data")
         def process_data(data):
-            # Process the data and possibly raise an exception.
+            # Process data that might raise an exception.
             pass
+
+        # For a dunder method, logging is skipped:
+        class MyClass:
+            @log_and_raise_error("Should not log dunder")
+            def __repr__(self):
+                return "MyClass()"
     """
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if _is_dunder(func):
+                return func(*args, **kwargs)
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -65,32 +86,43 @@ def log_and_ignore_error(
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR)
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
-    A decorator factory that wraps a function call in a try-except block, logs
-    the error, and ignores it (i.e., does not re-raise an exception).
+    Decorator factory that wraps a function call in a try-except block, logs the error,
+    and ignores it (i.e., does not re-raise the exception).
 
     Parameters:
         message (str): Custom message to log on error.
             Defaults to "An unexpected error occurred."
-        logger (logging.Logger): Logger instance to use for logging errors.
-            Defaults to a logger created for the current module at ERROR level.
+        logger (logging.Logger): Logger instance for logging errors.
+            Defaults to a logger for the current module at ERROR level.
 
     Returns:
-        Callable: A decorator that wraps the target function.
+        Callable: A decorator wrapping the target function.
+
+    Note:
+        Dunder functions bypass logging and exception handling.
 
     Example:
-        @log_and_ignore_error("An error occurred in process_data.")
+        @log_and_ignore_error("Skipped error in process")
         def process_data(data):
-            # Process the data and possibly raise an exception.
+            # Process data that might raise an exception.
             pass
+
+        # Dunder usage:
+        class MyClass:
+            @log_and_ignore_error("Should not log in dunder")
+            def __str__(self):
+                return "MyClass"
     """
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if _is_dunder(func):
+                return func(*args, **kwargs)
             try:
                 return func(*args, **kwargs)
             except Exception as e:
                 logger.error("%s: %s", message, e)
-                # Error is ignored; return None by default.
+                # Error is ignored; default return is None.
         return wrapper
     return decorator
 
@@ -100,28 +132,39 @@ def log_and_return_default(
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR)
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
-    A decorator factory that wraps a function call in a try-except block, logs
-    the error, and returns a default value instead of raising the exception.
+    Decorator factory that wraps a function call in a try-except block, logs the error,
+    and returns a default value instead of raising an exception.
 
     Parameters:
-        default_value: The return value to use when the function call fails.
+        default_value: Value to return if the function call fails.
         message (str): Custom message to log on error.
             Defaults to "An unexpected error occurred."
-        logger (logging.Logger): Logger instance to use for logging errors.
-            Defaults to a logger created for the current module at ERROR level.
+        logger (logging.Logger): Logger instance for logging errors.
+            Defaults to a logger for the current module at ERROR level.
 
     Returns:
-        Callable: A decorator that wraps the target function.
+        Callable: A decorator wrapping the target function.
+
+    Note:
+        Dunder functions execute without logging or error interception.
 
     Example:
-        @log_and_return_default(default_value=[])
-        def get_feed_items(feed_url):
-            # Process the feed and possibly raise an exception.
+        @log_and_return_default(default_value=[], message="Failed to fetch items")
+        def get_feed_items(url):
+            # Code that might raise an exception.
             pass
+
+        # In a dunder method:
+        class MyClass:
+            @log_and_return_default(default_value="Default", message="Not for dunder")
+            def __str__(self):
+                return "MyClass"
     """
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if _is_dunder(func):
+                return func(*args, **kwargs)
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -139,25 +182,36 @@ def log_execution_time(
     log_level: int = logging.DEBUG
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
-    A decorator that logs a function's execution start, parameters, and duration.
-    
+    Decorator that logs the start, parameters, and duration of a function's execution.
+
     Parameters:
-        logger (logging.Logger): Logger instance to use for logging execution details.
-            Defaults to a logger created for the current module at DEBUG level.
-        log_level (int): Logging level for the execution logs.
+        logger (logging.Logger): Logger instance for logging execution details.
+            Defaults to a logger for the current module at DEBUG level.
+        log_level (int): Logging level for execution logs.
             Defaults to logging.DEBUG.
-    
+
     Returns:
-        Callable: A decorator that wraps the target function.
-    
+        Callable: A decorator wrapping the target function.
+
+    Note:
+        If the target function is a dunder, execution is unmodified.
+
     Example:
         @log_execution_time
         def compute(x, y):
             return x + y
+
+        # In a class, dunder bypass:
+        class MyClass:
+            @log_execution_time
+            def __init__(self):
+                self.value = 0
     """
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if _is_dunder(func):
+                return func(*args, **kwargs)
             start = time.perf_counter()
             logger.log(log_level, "Starting %s with args: %s, kwargs: %s", func.__name__, args, kwargs)
             result = func(*args, **kwargs)
@@ -178,31 +232,42 @@ def retry_on_failure(
     log_level: int = logging.DEBUG
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
-    A decorator factory that retries a function call when it fails. It catches exceptions during each call,
-    logs the exception and retry attempt, and retries the function after a specified delay.
-    
+    Decorator factory that retries a function call upon failure. It catches exceptions,
+    logs each retry attempt, and reattempts after a specified delay until the retry limit is reached.
+
     Parameters:
-        logger (logging.Logger): Logger instance to use for logging retry attempts and errors.
-            Defaults to a logger created for the current module at DEBUG level.
-        retries (int): Number of retry attempts before giving up.
+        logger (logging.Logger): Logger instance for logging retry attempts and errors.
+            Defaults to a logger for the current module at DEBUG level.
+        retries (int): Maximum number of retry attempts.
             Defaults to 3.
-        delay (int): Delay in milliseconds between retry attempts.
+        delay (int): Delay in milliseconds between retries.
             Defaults to 1000 (1 second).
         log_level (int): Logging level for retry messages.
             Defaults to logging.DEBUG.
-    
+
     Returns:
-        Callable: A decorator that wraps the target function.
-    
+        Callable: A decorator wrapping the target function.
+
+    Note:
+        Dunder functions are not subject to retry logic or logging.
+
     Example:
         @retry_on_failure(retries=5, delay=2000)
         def unstable_function():
-            # Code that might fail intermittently.
+            # Function that may intermittently fail.
             pass
+
+        # Dunder method example:
+        class MyClass:
+            @retry_on_failure
+            def __str__(self):
+                return "MyClass"
     """
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if _is_dunder(func):
+                return func(*args, **kwargs)
             attempt = 0
             while attempt <= retries:
                 try:
@@ -224,32 +289,35 @@ def retry_on_failure(
 
 def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
     """
-    A decorator for tracing a single method's execution.
-
-    This decorator logs when the method is triggered and when it finishes along with its execution time.
-    It extracts the class name from the first argument (assumed to be an instance) and logs messages 
-    using the provided logger.
+    Decorator for tracing the execution of a single method. Logs when the method is triggered
+    and when it completes, including its execution duration.
 
     Parameters:
-        logger (logging.Logger): Logger instance to log tracing information.
-            Defaults to a logger created for the current module at DEBUG level.
+        logger (logging.Logger): Logger instance for tracing.
+            Defaults to a logger for the current module at DEBUG level.
 
     Returns:
         Callable: A decorator that wraps the method with tracing functionality.
 
+    Note:
+        Dunder methods bypass tracing and execute normally.
+
     Example:
         class MyClass:
             @trace_method()
-            def my_method(self):
-                # ...existing code...
-                pass
+            def compute(self, x, y):
+                return x + y
 
-        obj = MyClass()
-        obj.my_method()
+            @trace_method()
+            def __str__(self):
+                # This dunder method will not be traced.
+                return "MyClass"
     """
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if _is_dunder(func):
+                return func(*args, **kwargs)
             class_name = args[0].__class__.__name__ if args else ''
             method_name = func.__name__
             logger.debug("%s.%s has triggered.", class_name, method_name)
@@ -263,32 +331,29 @@ def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, han
 
 def trace_class(cls: Any) -> Any:
     """
-    A class decorator that applies the trace_method decorator to all non-dunder methods of a class.
-
-    This decorator iterates over the class's attributes and wraps each callable attribute 
-    (excluding those whose names start with '__') with the trace_method decorator, enabling
-    execution tracing for each method.
+    Class decorator that applies the trace_method decorator to all non-dunder methods
+    of the class. This enables execution tracing for each method.
 
     Parameters:
-        cls (Any): The class whose methods will be wrapped with trace_method.
+        cls (Any): The class whose methods are to be traced.
 
     Returns:
-        Any: The modified class with tracing enabled on its non-dunder methods.
+        Any: The modified class with tracing applied to its non-dunder methods.
 
     Example:
         @trace_class
         class MyClass:
             def method_one(self):
-                # ...existing code...
                 pass
 
             def method_two(self):
-                # ...existing code...
                 pass
 
-        obj = MyClass()
-        obj.method_one()
-        obj.method_two()
+            def __repr__(self):
+                # Dunder methods are not traced.
+                return "MyClass"
+
+        # When method_one or method_two is called, execution tracing is enabled.
     """
     for attr_name, attr in cls.__dict__.items():
         if callable(attr) and not attr_name.startswith("__"):

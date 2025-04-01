@@ -45,7 +45,7 @@ class RssIngestionService:
         feed_urls (list): List of RSS feed URLs to process.
         last_ingestion (datetime): Timestamp indicating the last successful ingestion.
     """
-    @log_and_raise_error("❌ Failed to initialize RssQueueingService.")
+
     def __init__(self):
         """
         Initialize the RssQueueingService instance.

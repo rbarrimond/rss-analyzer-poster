@@ -51,7 +51,6 @@ class AzureClientFactory:
     _instance = None
     _lock = threading.Lock()
 
-    @log_and_raise_error("❌ AzureClientFactory creation failed.")
     def __init__(self):
         # Initialize the instance normally without raising an error.
         self._blob_service_client: BlobServiceClient = None

@@ -8,7 +8,7 @@ including summaries, readability scores, engagement data, and embeddings kept as
 """
 
 from datetime import datetime
-from typing import Optional, List, Literal
+from typing import Optional, Literal, Set
 import os
 import io
 
@@ -34,7 +34,7 @@ ai_enrichment_table_client: TableClient = acf.get_instance().get_table_service_c
     )
 
 container_client: ContainerClient = acf.get_instance().get_blob_service_client().get_container_client(
-    container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
+    os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
     )
 
 class Entry(BaseModel):
@@ -58,7 +58,7 @@ class Entry(BaseModel):
     partition_key: str = Field(
         default="entry",
         alias="PartitionKey",
-        regex=r"^[a-zA-Z0-9_-]+$",
+        pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key (alphanumeric, dash, underscore only) to ensure a valid blob path."
         )
     title: str = Field(
@@ -78,22 +78,23 @@ class Entry(BaseModel):
         alias="FeedKey",
         min_length=16,
         max_length=16,
-        regex=r"^[a-f0-9]{16}$",
+        pattern=r"^[a-f0-9]{16}$",
         description="RowKey of the feed to which this entry belongs."
         )
     link: HttpUrl = Field(
         alias="Link",
         description="URL link to the entry. Must be a valid HTTP or HTTPS URL."
         )
-    _content_key: Optional[str] = Field(
+    content_key: Optional[str] = Field(
         default=None,
         alias="ContentKey",
         min_length=16,
         max_length=16,
-        regex=r"^[a-f0-9]{16}$",
+        pattern=r"^[a-f0-9]{16}$",
+        exclude=True,
         description="Key for the content blob in Azure Blob Storage."
         )
-    _content_cache: Optional[str] = Field(
+    content_cache: Optional[str] = Field(
         default=None,
         description="Cached content of the entry."
         )
@@ -136,15 +137,15 @@ class Entry(BaseModel):
         Uses cached content if available. If not, attempts to load from Azure Blob Storage;
         if that fails, fetches via HTTP, computes a hash for the text, caches it, and then returns it.
         """
-        if not self._content_cache:
+        if not self.content_cache:
             text = self._get_content_blob()
             if not text:
                 text = self._get_content_http()  # Attempt to download from the link
             if not text:
                 raise ValueError("Content is not available.")
             # Set _content to the hash of the text and cache the text
-            self._content_key = xxhash.xxh64(text).hexdigest()
-            self._content_cache = text
+            self.content_key = xxhash.xxh64(text).hexdigest()
+            self.content_cache = text
         return self._content_cache
 
     def __setattr__(self, name, value):
@@ -232,7 +233,12 @@ class AIEnrichment(BaseModel):
         partition_key: Inherited partition key from the associated entry.
         row_key: Computed row key derived from the associated entry's id.
     """
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True, validate_assignment=True)
+    model_config = ConfigDict(
+        populate_by_name=True, 
+        from_attributes=True, 
+        validate_assignment=True,
+        arbitrary_types_allowed=True
+        )
     
     entry: Entry
     summary: Optional[str] = Field(
@@ -262,24 +268,24 @@ class AIEnrichment(BaseModel):
         le=10,
         description="Engagement score"
         )
-    engagement_categories: Optional[List[Literal['Liked', 'Comment', 'Shared']]] = Field(
+    engagement_categories: Optional[Set[Literal['Liked', 'Comment', 'Shared']]] = Field(
         default=None,
         alias="EngagementCategories",
         max_items=3,
         min_items=1,
-        unique_items=True,
         description="Categories of engagement"
         )
-    _embeddings_key: Optional[str] = Field(
+    embeddings_key: Optional[str] = Field(
         default=None,
         alias="EmbeddingsKey",
         min_length=16,
         max_length=16,
-        regex=r"^[a-f0-9]{16}$",
+        pattern=r"^[a-f0-9]{16}$",
         description="Key for the embeddings blob in Azure Blob Storage."
         )
-    _embeddings_cache: Optional[np.ndarray] = Field(
+    embeddings_cache: Optional[np.ndarray] = Field(
         default=None,
+        exclude=True,
         description="Cached embeddings of the entry."
         )
 
@@ -303,12 +309,12 @@ class AIEnrichment(BaseModel):
         Returns the embeddings numpy array from cache if available;
         otherwise, loads it from Azure Blob Storage.
         """
-        if self._embeddings_cache is None:
+        if self.embeddings_cache is None:
             data = self._get_embeddings_blob()
             if data is None:
                 raise ValueError("Embeddings not available.")
-            object.__setattr__(self, "_embeddings_cache", data)
-        return self._embeddings_cache
+            object.__setattr__(self, "embeddings_cache", data)
+        return self.embeddings_cache
 
     def __setattr__(self, name, value):
         """
@@ -324,8 +330,8 @@ class AIEnrichment(BaseModel):
             buf.seek(0)
             bytes_data = buf.getvalue()
             hashed = xxhash.xxh64(bytes_data).hexdigest()
-            object.__setattr__(self, "_embeddings_key", hashed)
-            object.__setattr__(self, "_embeddings_cache", value)
+            object.__setattr__(self, "embeddings_key", hashed)
+            object.__setattr__(self, "embeddings_cache", value)
             container_client.get_blob_client(
                 blob=f"{self.partition_key}/{hashed}.npy").upload_blob(bytes_data, overwrite=True)
         else:
