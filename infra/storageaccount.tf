@@ -3,17 +3,12 @@
 #
 # This file defines the configuration for Azure Storage Accounts used
 # in the RSS Analyzer Poster project. It includes:
-# - A general-purpose storage account for application data and logs.
+# - A general-purpose storage account for application data.
 # - A blob container for storing function app configuration files.
 # - A dedicated storage account for function app deployment artifacts.
 # ===================================================================
 
-# Create an Azure Storage Account
-# This storage account is intended for general-purpose use, supporting
-# various storage types such as Blob, File, Queue, and Table storage.
-# It is configured with Local Redundant Storage (LRS) for cost efficiency
-# and ensures data security with private access settings.
-
+# General-purpose storage account for app data.
 resource "azurerm_storage_account" "strg_storageaccount" {
   name                          = "storage${var.resource_suffix}"
   resource_group_name           = azurerm_resource_group.rg.name
@@ -26,84 +21,64 @@ resource "azurerm_storage_account" "strg_storageaccount" {
   }
 }
 
-# Assign role to admin
+# Role assignment for admin contributor.
 resource "azurerm_role_assignment" "admin_storage_table_data_contributor" {
   principal_id         = var.admin_object_id
   role_definition_name = "Storage Table Data Contributor"
   scope                = azurerm_storage_account.strg_storageaccount.id
 }
 
-# Create a Blob Container for Function App Configurations
-# This container is used to store configuration files required by the function app.
-# It is stored in the general-purpose storage account.
-
+# Blob container for function app config.
 resource "azurerm_storage_container" "config_container" {
   name                  = var.config_container
   storage_account_id    = azurerm_storage_account.strg_storageaccount.id
   container_access_type = "private"
 }
 
-# Create a Blob Container for RSS Entries
-# This container is used to store RSS entries' full content.
-# It is stored in the general-purpose storage account.
-
+# Blob container for storing full RSS entries.
 resource "azurerm_storage_container" "rss_entries_container" {
   name                  = var.rss_entries_container
   storage_account_id    = azurerm_storage_account.strg_storageaccount.id
   container_access_type = "private"
 }
 
-# Create an Azure Storage Table for RSS Feed Information
-# This table is used to store information about RSS feeds.
-# It is stored in the general-purpose storage account.
-
+# Storage table for RSS feed info.
 resource "azurerm_storage_table" "rss_feeds_table" {
   name                 = var.rss_feeds_table
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
-# Create an Azure Storage Table for RSS Entries
-# This table is used to store RSS entries.
-# It is stored in the general-purpose storage account.
-
+# Storage table for RSS entries.
 resource "azurerm_storage_table" "rss_entries_table" {
   name                 = var.rss_entries_table
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
-# Create an Azure Storage Table for AI Enrichment
-# This table is used to store AI enrichment data.
-# It is stored in the general-purpose storage account.
-
+# Storage table for AI enrichment data.
 resource "azurerm_storage_table" "ai_enrichment_table" {
   name                 = var.ai_enrichment_table
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
-# Create an Azure Storage Table for Posts
-# This table is used to store RSS posts.
-# It is stored in the general-purpose storage account.
-
+# Storage table for RSS posts.
 resource "azurerm_storage_table" "posts_table" {
   name                 = var.posts_table
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
-# Create Azure Storage Queues for RSS feeds and entries
+# Storage queue for RSS feeds.
 resource "azurerm_storage_queue" "rss_feed_queue" {
   name                 = var.rss_feed_queue
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
+# Storage queue for RSS entries.
 resource "azurerm_storage_queue" "rss_entry_queue" {
   name                 = var.rss_entries_queue
   storage_account_name = azurerm_storage_account.strg_storageaccount.name
 }
 
-# Create an Azure Storage Account for Function App Deployment
-# This storage account is specifically used for storing internal data and logs
-# for the function app. It uses Local Redundant Storage (LRS) for cost efficiency.
-
+# Storage account for function app deployment artifacts.
 resource "azurerm_storage_account" "strg_funcdep" {
   name                          = "funcdep${var.resource_suffix}"
   resource_group_name           = azurerm_resource_group.rg.name
