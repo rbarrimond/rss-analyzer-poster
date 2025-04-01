@@ -151,11 +151,10 @@ funcpack/
 # Temporary files
 *.tmp
 
-# Azurite data directory
+# Azurite files (data, JSON, config, etc.) 
 azurite_data/
-
-# Azurite JSON files
 __azurite*.json
+AzuriteConfig*
 
 # Ignore zip files
 *.zip
