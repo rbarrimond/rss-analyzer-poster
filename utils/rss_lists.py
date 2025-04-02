@@ -29,7 +29,7 @@ from msgraph.generated.sites.item.lists.item.items.items_request_builder import 
 from utils.logger import LoggerFactory
 
 # Configure logging
-logger = LoggerFactory.get_logger(__name__)
+logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
 async def fetch_column_names(graph_service_client, site_id: str, list_id: str) -> pd.Series:
     """
