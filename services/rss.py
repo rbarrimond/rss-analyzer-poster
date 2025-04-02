@@ -148,12 +148,10 @@ class RssIngestionService:
         queue_client: QueueClient = acf.get_instance().get_queue_service_client(
             ).get_queue_client(os.getenv('RSS_ENTRY_QUEUE_NAME'))
         if not queue_client:
-            logger.debug("Missing configuration values: queue_client=%s", queue_client)
             raise ValueError(f"Missing required configuration values: queue_client={queue_client}")
         
         feed_data: FeedParserDict = feedparser.parse(feed_url)
         if not feed_data.feed:
-            logger.debug("Invalid feed URL: %s", feed_url)
             raise ValueError(f"Invalid feed URL: {feed_url}")
         
         # Update the Feed table with the feed metadata
