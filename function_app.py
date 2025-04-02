@@ -13,7 +13,7 @@ import os
 import json
 
 import azure.functions as func
-from azure.functions import HttpRequest, HttpResponse
+from azure.functions import HttpRequest, HttpResponse, QueueMessage
 
 from services.rss import RssIngestionService
 from utils.decorators import log_and_ignore_error, log_and_return_default
@@ -110,7 +110,7 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
 @log_and_ignore_error("ingest_queued_feed function failed.")
 @app.function_name(name="ingestQueuedFeed")
 @app.queue_trigger(arg_name="msg", queue_name=os.getenv("RSS_FEED_QUEUE_NAME"), connection="AzureWebJobsStorage")
-def ingest_queued_feed(msg: func.QueueMessage) -> None:
+def ingest_queued_feed(msg: QueueMessage) -> None:
     """
     Queue trigger function that processes messages from the RSS entry queue.
     Extracts the feed URL from the queue message and calls RssIngestionService.ingest_feed.
