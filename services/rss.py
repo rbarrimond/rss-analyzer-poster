@@ -1,5 +1,5 @@
 """
-Module: rss_queueing_service
+Module: rss_ingestion_service
 This module handles the loading of configuration, conditional HTTP checking of RSS feeds for updates,
 and enqueuing updated feeds (with entry IDs) into an Azure Queue for downstream processing.
 """
@@ -34,7 +34,7 @@ EPOCH_RFC1123 = datetime(1970, 1, 1)
 @trace_class
 class RssIngestionService:
     """
-    The RssQueueingService class is responsible for managing RSS feed processing.
+    The RssIngestionService class is responsible for managing RSS feed processing.
     It loads the configuration, checks for feed updates using conditional HTTP GET requests,
     and enqueues updated feeds along with their entry IDs for subsequent processing.
 
@@ -92,37 +92,42 @@ class RssIngestionService:
 
                 message = queue_client.send_message(json.dumps(payload))
 
-                logger.info("RSS Queueing Service enqueued feed: %s", str(feed))
+                logger.info("RSS Ingestion Service enqueued feed: %s", str(feed))
                 logger.debug("Enqueued feed: %s, message_id: %s, eTag: %s",
                              str(feed), message.id, message.get('_etag'))
 
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
-        ConfigLoader().RssQueueingService['last_ingestion'] = datetime.now(timezone.utc)
-        logger.info("RSS Queueing Service enqueued feeds successfully.")
+        ConfigLoader().RssIngestionService['last_ingestion'] = datetime.now(timezone.utc)
+        logger.info("RSS Ingestion Service enqueued feeds successfully.")
 
     @log_execution_time()
     @log_and_return_default(False, message="Failed to check feed for update.")
-    @retry_on_failure(retries=1, delay=0) # Retry once with delay coming from timeout in requests.get()
+    @retry_on_failure(retries=1, delay=0)  # Retry once with delay coming from timeout in requests.get()
     def _check_feed_for_update(self, feed_url: str, modified_since: datetime = EPOCH_RFC1123) -> bool:
         """
         Check whether an RSS feed has been updated based on the provided timestamp.
 
-        Sends a GET request with an 'If-Modified-Since' header formatted as RFC1123.
+        Sends a GET request with an 'If-Modified-Since' header formatted as RFC1123
+        and a User-Agent header. Follows redirects to ensure the final resource is reached.
         Returns True if the feed returns HTTP 200 (indicating new content) and False if HTTP 304.
         Raises:
             requests.exceptions.HTTPError: When the HTTP request fails.
         """
         # Format the datetime to RFC1123 string for the header.
-        headers = {"If-Modified-Since": format_datetime(modified_since)}
-        response = requests.head(feed_url, timeout=5, headers=headers)
+        headers = {
+            "If-Modified-Since": format_datetime(modified_since),
+            "User-Agent": "Mozilla/5.0 (compatible; MyRSSFeedReader/1.0; +https://rlbenterprisesllc.com)"
+        }
+        # Explicitly allow redirections to handle any HTTP redirects.
+        response = requests.get(feed_url, timeout=5, headers=headers, allow_redirects=True)
         response.raise_for_status()
 
         if response.status_code == 304:
             logger.debug("Feed not updated: %s", feed_url)
             return False
 
-        logger.debug("Feed updated: %s", feed_url)
+        logger.debug("Feed updated: %s (final URL: %s)", feed_url, response.url)
         return response.status_code == 200
 
     @log_execution_time()
