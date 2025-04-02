@@ -10,6 +10,7 @@ Also includes an internal helper to extract JSON from HTTP requests.
 """
 
 import os
+import json
 
 import azure.functions as func
 from azure.functions import HttpRequest, HttpResponse
@@ -106,6 +107,37 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
     return func.HttpResponse(f'{{"message": "Log level updated to {new_level}."}}', status_code=200, mimetype="application/json")
 
 
+@log_and_ignore_error("ingest_queued_feed function failed.")
+@app.function_name(name="ingestQueuedFeed")
+@app.queue_trigger(arg_name="msg", queue_name=os.getenv("RSS_FEED_QUEUE_NAME"), connection="AzureWebJobsStorage")
+def ingest_queued_feed(msg: func.QueueMessage) -> None:
+    """
+    Queue trigger function that processes messages from the RSS entry queue.
+    Extracts the feed URL from the queue message and calls RssIngestionService.ingest_feed.
+    
+    Parameters:
+        msg (func.QueueMessage): The triggered queue message.
+        
+    Returns:
+        None
+    """
+    logger.info("Ingest Queued Feed received a message.")
+    
+    payload = _extract_json_from_queue_msg(msg)
+    if not payload:
+        logger.error("Empty message payload received.")
+        return
+    logger.debug("Ingest Queued Feed payload: %s", payload)
+
+    feed_url = payload.get("feed", {}).get("url")
+    if not feed_url:
+        logger.error("Missing feed url in message payload.")
+        return
+    
+    RssIngestionService().ingest_feed(feed_url)
+    logger.info("Feed ingestion completed for: %s", feed_url)
+        
+
 @log_and_return_default(default_value={}, message="Failed to extract JSON from request.")
 def _extract_json_from_request_body(req: HttpRequest) -> dict:
     """
@@ -118,3 +150,17 @@ def _extract_json_from_request_body(req: HttpRequest) -> dict:
         dict: The parsed JSON content.
     """
     return req.get_json()
+
+
+@log_and_return_default(default_value={}, message="Failed to extract JSON from message.")
+def _extract_json_from_queue_msg(msg: func.QueueMessage) -> dict:
+    """
+    Helper function to extract JSON from a queue message's body.
+    
+    Parameters:
+        msg (func.QueueMessage): The queue message to parse.
+        
+    Returns:
+        dict: The parsed JSON content.
+    """
+    return json.loads(msg.get_body().decode('utf-8'))
