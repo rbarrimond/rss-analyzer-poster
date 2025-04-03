@@ -3,6 +3,7 @@ Updated logging configuration utility module.
 """
 import os
 import logging
+from logging.handlers import RotatingFileHandler
 
 def str_to_bool(val: str) -> bool:
     """
@@ -28,7 +29,7 @@ class LoggerFactory:
 
     @staticmethod
     def get_logger(module_name: str, handler_level: int | str = os.getenv('LOG_LEVEL', 'INFO'),
-                   log_to_file: bool | str = False, file_name: str = None) -> logging.Logger:
+                   log_to_file: bool | str = os.getenv("LOG_TO_FILE"), file_name: str = None) -> logging.Logger:
         """
         Initialize and configure a logger for a specified module.
         
@@ -73,7 +74,8 @@ class LoggerFactory:
                 full_file_path = os.path.join(log_file_path, file_name)
             else:
                 full_file_path = file_name
-            file_handler = logging.FileHandler(full_file_path)
+            # Using RotatingFileHandler: 5MB per file with 3 backups
+            file_handler = RotatingFileHandler(full_file_path, maxBytes=5 * 1024 * 1024, backupCount=3)
             file_handler.setLevel(handler_level)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
