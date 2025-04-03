@@ -8,11 +8,12 @@ operations. The unique row key is computed from the feed link using xxhash.
 
 import os
 from datetime import datetime
+from dateutil import parser
 from typing import Optional
 
 import xxhash
 from azure.data.tables import TableClient
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, field_validator
 
 from utils.azclients import AzureClientFactory as acf
 
@@ -99,6 +100,27 @@ class Feed(BaseModel):
         max_length=500,
         description="Subtitle of the feed."
     )
+
+    @field_validator("updated", mode="before")
+    @classmethod
+    def parse_updated(cls, v):
+        """
+        Validates and parses the updated field to ensure it is a datetime object.
+        If the input is a string, it attempts to parse it using dateutil.parser.
+        If parsing fails, it raises a ValueError.
+        Args:
+            v (str | datetime): The value to validate and parse.
+        Returns:
+            datetime: The parsed datetime object.
+        Raises:
+            ValueError: If the input cannot be parsed into a datetime object.
+        """
+        if isinstance(v, str):
+            try:
+                return parser.parse(v)
+            except Exception as e:
+                raise ValueError(f"Unable to parse updated datetime: {v}") from e
+        return v
 
     @computed_field(alias="RowKey", description="Unique identifier for the feed computed from its link.")
     @property

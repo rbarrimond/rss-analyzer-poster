@@ -8,6 +8,7 @@ including summaries, readability scores, engagement data, and embeddings kept as
 """
 
 from datetime import datetime
+from dateutil import parser
 from typing import Optional, Literal, Set
 import os
 import io
@@ -15,7 +16,7 @@ import io
 import xxhash
 from azure.data.tables import TableClient
 from azure.storage.blob import ContainerClient
-from pydantic import BaseModel, Field, computed_field, HttpUrl, ConfigDict
+from pydantic import BaseModel, Field, computed_field, HttpUrl, ConfigDict, field_validator
 import requests
 import numpy as np
 
@@ -122,6 +123,23 @@ class Entry(BaseModel):
         alias="Source",
         description="Source of the entry."
         )
+
+    @field_validator("published", mode="before")
+    @classmethod
+    def parse_published(cls, v):
+        """
+        Parse the published date string into a datetime object.
+        If the input is already a datetime object, it is returned as is.
+        If the input is a string, it attempts to parse it using dateutil.parser.
+        Raises:
+            ValueError: If the input cannot be parsed into a datetime object.
+        """
+        if isinstance(v, str):
+            try:
+                return parser.parse(v)
+            except Exception as e:
+                raise ValueError(f"Unable to parse published date: {v}") from e
+        return v
 
     @computed_field(alias="RowKey", description="RowKey of the entry in Azure Table Storage.")
     @property

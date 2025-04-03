@@ -74,6 +74,17 @@ class Post(BaseModel):
         description="Draft status of the blog post"
         )
 
+    @field_validator("draft_date", mode="before")
+    @classmethod
+    def parse_draft_date(cls, v):
+        from dateutil import parser
+        if isinstance(v, str):
+            try:
+                return parser.parse(v)
+            except Exception as e:
+                raise ValueError(f"Unable to parse draft date: {v}") from e
+        return v
+
     @log_and_raise_error(message="Error in Post entity. Content not valid markdown.")
     @field_validator("content")
     @classmethod
