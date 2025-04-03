@@ -125,7 +125,7 @@ def ingest_queued_feed(msg: QueueMessage) -> None:
     
     payload = _extract_json_from_queue_msg(msg)
     if not payload:
-        logger.error("Empty message payload received.")
+        logger.error("Empty message payload received. msg=%s", msg)
         return
     logger.debug("Ingest Queued Feed payload: %s", payload)
 
@@ -135,7 +135,8 @@ def ingest_queued_feed(msg: QueueMessage) -> None:
         return
     
     RssIngestionService().ingest_feed(feed_url)
-    logger.info("Feed ingestion completed for: %s", feed_url)
+    feed_name = payload.get("feed", {}).get("name")
+    logger.info("Feed ingestion completed for: %s at %s", feed_name, feed_url)
         
 
 @log_and_return_default(default_value={}, message="Failed to extract JSON from request.")
@@ -163,4 +164,6 @@ def _extract_json_from_queue_msg(msg: func.QueueMessage) -> dict:
     Returns:
         dict: The parsed JSON content.
     """
-    return json.loads(msg.get_body().decode('utf-8'))
+
+    body = msg.get_body().decode('utf-8')
+    return json.loads(body)
