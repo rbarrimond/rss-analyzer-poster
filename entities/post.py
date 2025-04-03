@@ -131,7 +131,7 @@ class Post(BaseModel):
             str: A hash value representing the unique key for the post.
         """
         if all(self.title, self.content, isinstance(self.draft_date, datetime)):
-            return xxhash.xxh64(f"{self.title}_{self.content}_{self.draft_date.isoformat()}").hexdigest()
+            return xxhash.xxh64(f"{self.title}_{self.content}_{self.draft_date.isoformat()}".encode("utf-8")).hexdigest()
         raise AttributeError("title, content, and draft_date must be provided")
     
     def save(self) -> None:

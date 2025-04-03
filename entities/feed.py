@@ -131,7 +131,7 @@ class Feed(BaseModel):
         Returns:
             str: The computed hash of the feed link.
         """
-        return xxhash.xxh64(self.link).hexdigest()
+        return xxhash.xxh64(str(self.link).encode("utf-8")).hexdigest()
 
     @classmethod
     def create(cls, **kwargs) -> "Feed":
