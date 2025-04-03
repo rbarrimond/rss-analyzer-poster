@@ -26,7 +26,7 @@ from utils.decorators import (log_and_raise_error, log_and_return_default,
                               trace_class)
 from utils.logger import LoggerFactory
 
-logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
+logger = LoggerFactory.get_logger(__name__)
 
 # Default epoch time for last ingestion
 # This is the Unix epoch time (1970-01-01T00:00:00Z) used as a fallback for last ingestion.
@@ -154,18 +154,22 @@ class RssIngestionService:
             ).get_queue_client(os.getenv('RSS_ENTRY_QUEUE_NAME'))
         if not queue_client:
             raise ValueError(f"Missing required configuration values: queue_client={queue_client}")
+        logger.debug("Queue client: %s", queue_client)
         
         feed_data: FeedParserDict = feedparser.parse(feed_url)
         if not feed_data.feed:
             raise ValueError(f"Invalid feed URL: {feed_url}")
-        
+        logger.debug("Feed parsed.")
+
         # Update the Feed table with the feed metadata
         feed: Feed = Feed.create(**feed_data.feed)
         if not feed:
             raise ValueError(f"Invalid feed metadata: {feed_data.feed}")
+        logger.debug("Feed metadata: %s", feed)
         
-        # The partition key is derived from the feed name, converted to snake_case
-        partition_key = re.sub(r'(?<!^)(?=[A-Z])', '_', str(feed.name)).lower().strip()
+        # The partition key is derived from the feed title, converted to snake_case
+        partition_key = re.sub(r'(?<!^)(?=[A-Z])', '_', str(feed.title)).lower().strip()
+        logger.debug("Feed partition key: %s", partition_key)
 
         entry_keys: List[Tuple[str, str]] = []
         # Create the entries and persist them

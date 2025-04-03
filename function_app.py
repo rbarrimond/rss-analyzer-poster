@@ -20,7 +20,7 @@ from utils.decorators import log_and_ignore_error, log_and_return_default
 from utils.logger import LoggerFactory
 
 # Configure logging
-logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
+logger = LoggerFactory.get_logger(__name__)
 
 # Create the Azure Functions application instance
 app = func.FunctionApp()

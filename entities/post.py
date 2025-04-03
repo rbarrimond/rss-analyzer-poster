@@ -5,22 +5,26 @@ It includes:
 - A computed 'partition_key' based on 'draft_date' in YYYY-MM format.
 - A computed 'row_key' that is a hash of the title, content, and draft_date.
 """
-from datetime import datetime, timezone
 import os
+from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
 import markdown
 import xxhash
 from azure.data.tables import TableClient
-from pydantic import (BaseModel, ConfigDict, Field, computed_field, field_validator)
+from dateutil import parser
+from pydantic import (BaseModel, ConfigDict, Field, computed_field,
+                      field_validator)
 
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error
+from utils.logger import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__)
 
 post_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
     table_name=os.getenv("POSTS_TABLE_NAME", "posts")
 )
-post_table_client.create_table_if_not_exists()
 
 class Post(BaseModel):
     """Represents a blog post with optional AI enrichment.
@@ -77,7 +81,15 @@ class Post(BaseModel):
     @field_validator("draft_date", mode="before")
     @classmethod
     def parse_draft_date(cls, v):
-        from dateutil import parser
+        """Parses the draft date from a string to a datetime object.
+        This method uses dateutil.parser to handle various date formats.
+        Args:
+            v (str | datetime): The draft date as a string or datetime object.
+        Returns:
+            datetime: The parsed datetime object.
+        Raises:
+            ValueError: If the string cannot be parsed into a datetime object.
+        """
         if isinstance(v, str):
             try:
                 return parser.parse(v)

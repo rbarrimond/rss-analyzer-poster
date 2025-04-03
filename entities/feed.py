@@ -8,14 +8,18 @@ operations. The unique row key is computed from the feed link using xxhash.
 
 import os
 from datetime import datetime
-from dateutil import parser
 from typing import Optional
 
 import xxhash
 from azure.data.tables import TableClient
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, field_validator
+from dateutil import parser
+from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
+                      field_validator)
 
 from utils.azclients import AzureClientFactory as acf
+from utils.logger import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__)
 
 table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
     table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"))
@@ -29,7 +33,7 @@ class Feed(BaseModel):
     ensuring consistency when interacting with the storage table.
 
     Attributes:
-        name (Optional[str]): The feed's display name (1-200 characters). Defaults to "Unknown Name".
+        title (Optional[str]): The feed's display title (1-200 characters). Defaults to "Untitled".
         link (HttpUrl): The URL of the RSS feed (1-500 characters). Must be a valid HTTP or HTTPS link.
         language (Optional[str]): ISO language code for the feed (e.g., "en" or "en-US").
         publisher (Optional[str]): The publisher of the feed (1-200 characters).
@@ -50,12 +54,12 @@ class Feed(BaseModel):
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key for Azure Table Storage; default is 'feed'."
     )
-    name: Optional[str] = Field(
-        default="Unknown Name",
-        alias="Name",
+    title: Optional[str] = Field(
+        default="Untitled",
+        alias="Title",
         min_length=1,
         max_length=200,
-        description="Name of the feed; defaults to 'Unknown Name'."
+        description="Title of the feed; defaults to 'Untitled'."
     )
     link: HttpUrl = Field(
         alias="Link",
@@ -148,9 +152,13 @@ class Feed(BaseModel):
             Feed: The created and persisted Feed instance.
         """
         # Filter out unknown keys using updated model_fields
+        logger.debug("Creating Feed with kwargs: %s", kwargs)
         valid_kwargs = {k: v for k, v in kwargs.items() if k in Feed.model_fields.keys()}
+
         feed = cls(**valid_kwargs)
         table_client.upsert_entity(feed.model_dump())
+        logger.debug("Feed created: %s", feed)
+        
         return feed
 
     def save(self) -> None:

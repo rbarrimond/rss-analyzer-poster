@@ -24,7 +24,7 @@ from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_return_default, retry_on_failure
 from utils.logger import LoggerFactory
 
-logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
+logger = LoggerFactory.get_logger(__name__)
 
 entry_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
     table_name=os.getenv("RSS_ENTRIES_TABLE_NAME", "entries")
@@ -164,7 +164,7 @@ class Entry(BaseModel):
             # Set _content to the hash of the text and cache the text
             self.content_key = xxhash.xxh64(text).hexdigest()
             self.content_cache = text
-        return self._content_cache
+        return self.content_cache
 
     def __setattr__(self, name, value):
         """
@@ -194,8 +194,12 @@ class Entry(BaseModel):
         """
         # Filter out unknown keys using updated model_fields
         valid_kwargs = {k: v for k, v in kwargs.items() if k in Entry.model_fields.keys()}
+        logger.debug("Creating Entry with valid kwargs: %s", valid_kwargs)
+
         entry = cls(**valid_kwargs)
         entry_table_client.upsert_entity(entry.model_dump())
+        logger.debug("Entry created and saved: %s", entry)
+
         return entry
 
     def save(self) -> None:
@@ -374,8 +378,12 @@ class AIEnrichment(BaseModel):
         """
         # Filter out unknown keys using updated model_fields
         valid_kwargs = {k: v for k, v in kwargs.items() if k in AIEnrichment.model_fields.keys()}
+        logger.debug("Creating AIEnrichment with valid kwargs: %s", valid_kwargs)
+
         enrichment = cls(**valid_kwargs)
         ai_enrichment_table_client.upsert_entity(enrichment.model_dump())
+        logger.debug("Created AIEnrichment: %s", enrichment)
+
         return enrichment
 
     def delete(self) -> None:

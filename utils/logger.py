@@ -4,12 +4,31 @@ Updated logging configuration utility module.
 import os
 import logging
 
+def str_to_bool(val: str) -> bool:
+    """
+    Convert a string to a boolean.
+    
+    Accepts: 'true', 't', 'yes', '1' → True;
+             'false', 'f', 'no', '0' → False.
+    Raises:
+         ValueError if the value cannot be interpreted.
+    """
+    if isinstance(val, bool):
+        return val
+    val = val.strip().lower()
+    if val in ("true", "t", "yes", "1"):
+        return True
+    elif val in ("false", "f", "no", "0"):
+        return False
+    else:
+        raise ValueError(f"Invalid boolean value: {val}")
+
 class LoggerFactory:
     """Factory for creating and configuring loggers with standardized handlers."""
 
     @staticmethod
     def get_logger(module_name: str, handler_level: int | str = os.getenv('LOG_LEVEL', 'INFO'),
-                   log_to_file: bool = False, file_name: str = None) -> logging.Logger:
+                   log_to_file: bool | str = False, file_name: str = None) -> logging.Logger:
         """
         Initialize and configure a logger for a specified module.
         
@@ -47,8 +66,14 @@ class LoggerFactory:
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
 
-        if log_to_file:
-            file_handler = logging.FileHandler(file_name or f"{module_name}.log")
+        if str_to_bool(log_to_file):
+            file_name = file_name or f"{module_name}.log"
+            log_file_path = os.getenv("LOG_FILE_PATH", "")
+            if log_file_path:
+                full_file_path = os.path.join(log_file_path, file_name)
+            else:
+                full_file_path = file_name
+            file_handler = logging.FileHandler(full_file_path)
             file_handler.setLevel(handler_level)
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
