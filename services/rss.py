@@ -7,6 +7,7 @@ and enqueuing updated feeds (with entry IDs) into an Azure Queue for downstream 
 import json
 import os
 import re
+import base64
 from datetime import datetime, timezone
 from email.utils import format_datetime
 from typing import List, Tuple
@@ -85,12 +86,16 @@ class RssIngestionService:
                     "envelope": {
                         "status": "enqueued",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "eTag": None
                     },
                     "feed": feed,
                 }
 
-                message = queue_client.send_message(json.dumps(payload))
+                # Added logging to inspect the enqueued payload.
+                logger.debug("Enqueuing payload: %s", payload)
+
+                encoded_payload = base64.b64encode(
+                    json.dumps(payload).encode('utf-8')).decode('utf-8')
+                message = queue_client.send_message(encoded_payload)
 
                 logger.info("RSS Ingestion Service enqueued feed: %s", str(feed))
                 logger.debug("Enqueued feed: %s, message_id: %s, eTag: %s",
@@ -162,7 +167,7 @@ class RssIngestionService:
         # The partition key is derived from the feed name, converted to snake_case
         partition_key = re.sub(r'(?<!^)(?=[A-Z])', '_', str(feed.name)).lower().strip()
 
-        entry_keys: List[Tuple[str, str]] = [] 
+        entry_keys: List[Tuple[str, str]] = []
         # Create the entries and persist them
         for entry in feed_data.entries:
             entry = Entry.create(partition_key=partition_key, **entry)
@@ -183,7 +188,8 @@ class RssIngestionService:
             "entries": entry_keys
         }
 
-        message = queue_client.send_message(json.dumps(payload))
+        encoded_payload = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
+        message = queue_client.send_message(encoded_payload)
 
         logger.debug("Retrieved feed: %s, message_id: %s, eTag: %s",
                      feed_url, message.id, message.get('_etag'))
