@@ -165,6 +165,8 @@ class RssIngestionService:
         feed: Feed = Feed.create(**feed_data.feed)
         if not feed:
             raise ValueError(f"Invalid feed metadata: {feed_data.feed}")
+        if not feed.link:
+            feed.link = feed_url
         logger.debug("Feed metadata: %s", feed)
         
         # The partition key is derived from the feed title, converted to snake_case

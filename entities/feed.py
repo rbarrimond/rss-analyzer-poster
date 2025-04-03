@@ -83,7 +83,6 @@ class Feed(BaseModel):
     rights: Optional[str] = Field(
         default=None,
         alias="Rights",
-        min_length=1,
         max_length=500,
         description="Rights information for the feed."
     )
@@ -100,7 +99,6 @@ class Feed(BaseModel):
     subtitle: Optional[str] = Field(
         default=None,
         alias="Subtitle",
-        min_length=1,
         max_length=500,
         description="Subtitle of the feed."
     )
