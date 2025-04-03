@@ -7,10 +7,10 @@ from logging.handlers import RotatingFileHandler
 
 def str_to_bool(val: str) -> bool:
     """
-    Convert a string to a boolean.
+    Convert a string to a boolean, or return the boolean if already provided.
     
-    Accepts: 'true', 't', 'yes', '1' → True;
-             'false', 'f', 'no', '0' → False.
+    Accepts string values: 'true', 't', 'yes', '1' → True; 
+    'false', 'f', 'no', '0' → False.
     Raises:
          ValueError if the value cannot be interpreted.
     """
@@ -29,20 +29,20 @@ class LoggerFactory:
 
     @staticmethod
     def get_logger(module_name: str, handler_level: int | str = os.getenv('LOG_LEVEL', 'INFO'),
-                   log_to_file: bool | str = os.getenv("LOG_TO_FILE"), file_name: str = None) -> logging.Logger:
+                   log_to_file: bool | str = os.getenv("LOG_TO_FILE"), 
+                   file_name: str = os.getenv("LOG_FILE_NAME")) -> logging.Logger:
         """
         Initialize and configure a logger for a specified module.
         
         Parameters:
             module_name (str): Name of the module for which the logger is created.
-            handler_level (int or str): Logging level for handlers. Accepts numeric levels or level names 
-                                        (e.g., 'INFO', 'DEBUG'). Defaults to the value of the environment variable
-                                        LOG_LEVEL or 'INFO' if not set.
-            log_to_file (bool): If True, attaches a file handler to the logger.
-            file_name (str): Optional file name for logging; defaults to '<module_name>.log' if not provided when log_to_file is True.
+            handler_level (int or str): Logging level; accepts numeric levels or level names 
+                                        (e.g., 'INFO', 'DEBUG'). Defaults to LOG_LEVEL or 'INFO' if not set.
+            log_to_file (bool or str): If True (or a truthy string), attaches a file handler to the logger.
+            file_name (str): Optional file name for logging; defaults to '<module_name>.log' if not provided when file logging is enabled.
         
         Returns:
-            logging.Logger: Configured logger instance with stream (and optionally file) handler.
+            logging.Logger: Configured logger instance with a stream handler and, optionally, a file handler.
         """
         # Validate input parameters
         if not module_name or not isinstance(module_name, str):
@@ -89,7 +89,7 @@ class LoggerFactory:
         
         Parameters:
             logger (logging.Logger): The logger whose handlers will be updated.
-            new_level (int or str): The new logging level to apply to all handlers.
+            new_level (int or str): The new logging level (numeric or level name) to apply to all handlers.
         
         Raises:
             ValueError: If new_level is None.
@@ -101,13 +101,13 @@ class LoggerFactory:
     @staticmethod
     def _parse_log_level(level: int | str | None) -> int:
         """
-        Parse the log level input into a valid logging level integer.
-
+        Parse the input log level into a valid logging level integer.
+        
         Parameters:
             level (int, str, or None): The log level as an int, a level name as a string, or None.
         
         Returns:
-            int: The corresponding logging level.
+            int: The resolved logging level as an integer.
         
         Raises:
             ValueError: If the provided level is None or invalid.
