@@ -70,7 +70,7 @@ class Feed(BaseModel):
     language: Optional[str] = Field(
         default=None,
         alias="Language",
-        pattern=r'^[a-z]{2}(?:-[A-Z]{2})?$',
+        pattern=r'^[a-z]{2}(?:-[a-zA-Z]{2})?$',
         description="Language code of the feed, e.g., 'en' or 'en-US'."
     )
     publisher: Optional[str] = Field(
@@ -158,7 +158,7 @@ class Feed(BaseModel):
         feed = cls(**valid_kwargs)
         table_client.upsert_entity(feed.model_dump())
         logger.debug("Feed created: %s", feed)
-        
+
         return feed
 
     def save(self) -> None:
