@@ -14,6 +14,8 @@ import os
 import io
 
 import xxhash
+from bs4 import BeautifulSoup
+
 from azure.data.tables import TableClient
 from azure.storage.blob import ContainerClient
 from pydantic import BaseModel, Field, computed_field, HttpUrl, ConfigDict, field_validator
@@ -108,14 +110,12 @@ class Entry(BaseModel):
         default=None,
         alias="Author",
         description="Author of the entry.",
-        min_length=2,
         max_length=50
         )
     summary: Optional[str] = Field(
         default=None,
         alias="Summary",
         description="Summary of the entry.",
-        min_length=2,
         max_length=500
         )
     source: Optional[dict] = Field(
@@ -123,6 +123,18 @@ class Entry(BaseModel):
         alias="Source",
         description="Source of the entry."
         )
+
+    @field_validator("summary", mode="before")
+    @classmethod
+    def strip_summary_html(cls, v):
+        """
+        Strip HTML tags from the summary string.
+        If the input is already a string, it is returned as is.
+        If the input is None, it is also returned as is.
+        """
+        if v:
+            return BeautifulSoup(v, "html.parser").get_text()
+        return v
 
     @field_validator("published", mode="before")
     @classmethod

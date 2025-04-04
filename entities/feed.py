@@ -92,11 +92,11 @@ class Feed(BaseModel):
         alias="Updated",
         description="Timestamp of the last update; defaults to the Unix epoch."
     )
-    image: Optional[dict] = Field(
-        default=None,
-        alias="Image",
-        description="Associated image for the feed, stored as a dictionary."
-    )
+    # image: Optional[dict] = Field(
+    #     default=None,
+    #     alias="Image",
+    #     description="Associated image for the feed, stored as a dictionary."
+    # )
     subtitle: Optional[str] = Field(
         default=None,
         alias="Subtitle",
@@ -155,7 +155,7 @@ class Feed(BaseModel):
         valid_kwargs = {k: v for k, v in kwargs.items() if k in Feed.model_fields.keys()}
 
         feed = cls(**valid_kwargs)
-        response = table_client.upsert_entity(feed.model_dump(mode="json"))
+        response = table_client.upsert_entity(feed.model_dump(mode="json", by_alias=True))
         logger.debug("Feed created: %s\n%s", feed, response)
 
         return feed
@@ -167,7 +167,7 @@ class Feed(BaseModel):
         This method serializes the Feed instance and upserts the corresponding record
         in the storage table.
         """
-        table_client.upsert_entity(self.model_dump(mode="json"))
+        table_client.upsert_entity(self.model_dump(mode="json", by_alias=True))
 
     def delete(self) -> None:
         """
