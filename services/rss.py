@@ -171,6 +171,8 @@ class RssIngestionService:
        
         # The partition key is derived from the feed title, converted to snake_case
         partition_key = re.sub(r'(?<!^)(?=[A-Z])', '_', str(feed.title)).lower().strip()
+        # Remove any characters not allowed (only alphanumeric, dash, and underscore are permitted)
+        partition_key = re.sub(r'[^a-z0-9_-]', '', partition_key)
         logger.debug("Feed partition key: %s", partition_key)
 
         entry_keys: List[Tuple[str, str]] = []
