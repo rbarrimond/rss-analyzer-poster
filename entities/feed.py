@@ -47,7 +47,8 @@ class Feed(BaseModel):
         populate_by_name=True,
         from_attributes=True,
         validate_assignment=True
-    )
+        )
+    
     partition_key: str = Field(
         default="feed",
         alias="PartitionKey",
@@ -154,8 +155,8 @@ class Feed(BaseModel):
         valid_kwargs = {k: v for k, v in kwargs.items() if k in Feed.model_fields.keys()}
 
         feed = cls(**valid_kwargs)
-        table_client.upsert_entity(feed.model_dump())
-        logger.debug("Feed created: %s", feed)
+        response = table_client.upsert_entity(feed.model_dump(mode="json"))
+        logger.debug("Feed created: %s\n%s", feed, response)
 
         return feed
 
@@ -166,7 +167,7 @@ class Feed(BaseModel):
         This method serializes the Feed instance and upserts the corresponding record
         in the storage table.
         """
-        table_client.upsert_entity(self.model_dump())
+        table_client.upsert_entity(self.model_dump(mode="json"))
 
     def delete(self) -> None:
         """

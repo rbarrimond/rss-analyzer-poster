@@ -168,7 +168,7 @@ class RssIngestionService:
         if not feed.link:
             feed.link = feed_url
         logger.debug("Feed metadata: %s", feed)
-        
+       
         # The partition key is derived from the feed title, converted to snake_case
         partition_key = re.sub(r'(?<!^)(?=[A-Z])', '_', str(feed.title)).lower().strip()
         logger.debug("Feed partition key: %s", partition_key)

@@ -197,7 +197,7 @@ class Entry(BaseModel):
         logger.debug("Creating Entry with valid kwargs: %s", valid_kwargs)
 
         entry = cls(**valid_kwargs)
-        entry_table_client.upsert_entity(entry.model_dump())
+        entry_table_client.upsert_entity(entry.model_dump(mode="json"))
         logger.debug("Entry created and saved: %s", entry)
 
         return entry
@@ -207,7 +207,7 @@ class Entry(BaseModel):
 
         Serializes the current state of the Entry and updates the entity record in the storage.
         """
-        entry_table_client.upsert_entity(self.model_dump())
+        entry_table_client.upsert_entity(self.model_dump(mode="json"))
 
     def delete(self) -> None:
         """Deletes the Entry instance from Azure Table Storage.
@@ -363,7 +363,7 @@ class AIEnrichment(BaseModel):
         """
         Save the current AIEnrichment instance to Azure Table Storage.
         """
-        ai_enrichment_table_client.upsert_entity(self.model_dump())
+        ai_enrichment_table_client.upsert_entity(self.model_dump(mode="json"))
     
     @classmethod
     def create(cls, **kwargs) -> "AIEnrichment":
@@ -381,7 +381,7 @@ class AIEnrichment(BaseModel):
         logger.debug("Creating AIEnrichment with valid kwargs: %s", valid_kwargs)
 
         enrichment = cls(**valid_kwargs)
-        ai_enrichment_table_client.upsert_entity(enrichment.model_dump())
+        ai_enrichment_table_client.upsert_entity(enrichment.model_dump(mode="json"))
         logger.debug("Created AIEnrichment: %s", enrichment)
 
         return enrichment

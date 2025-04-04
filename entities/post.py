@@ -148,7 +148,7 @@ class Post(BaseModel):
     
     def save(self) -> None:
         """Saves the post entity to the Azure Table Storage posts table."""
-        post_table_client.upsert_entity(self.model_dump())
+        post_table_client.upsert_entity(self.model_dump(mode="json"))
     
     def delete(self) -> None:
         """Deletes the Post instance from Azure Table Storage."""
