@@ -6,6 +6,7 @@ and integrates with Azure Table Storage for create, update, delete, and serializ
 operations. The unique row key is computed from the feed link using xxhash.
 """
 
+from functools import cached_property
 import os
 import json
 from datetime import datetime
@@ -13,16 +14,18 @@ from typing import Optional
 
 import xxhash
 from azure.data.tables import TableClient
-from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field, field_validator)
+from pydantic import (BaseModel, ConfigDict, Field, HttpUrl,
+                      computed_field, field_serializer, field_validator)
 
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import log_and_return_default
+from utils.decorators import log_and_raise_error, log_and_return_default
 from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
 
 table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
     table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"))
+
 
 class Feed(BaseModel):
     """
@@ -48,8 +51,8 @@ class Feed(BaseModel):
         from_attributes=True,
         validate_assignment=True,
         extra="ignore"
-        )
-    
+    )
+
     partition_key: str = Field(
         default="feed",
         alias="PartitionKey",
@@ -106,7 +109,7 @@ class Feed(BaseModel):
     )
 
     @computed_field(alias="RowKey", description="Unique identifier for the feed computed from its link.")
-    @property
+    @cached_property
     def row_key(self) -> str:
         """
         Computes and returns the unique identifier (row key) for the feed using xxhash.
@@ -114,11 +117,11 @@ class Feed(BaseModel):
         Returns:
             str: The computed hash of the feed link.
         """
-        return xxhash.xxh64(str(self.link).encode("utf-8")).hexdigest()
+        return xxhash.xxh64(self.link).hexdigest()
 
-    @classmethod
-    @field_validator("image", mode="before")
     @log_and_return_default(default_value=None, message="Failed to parse image JSON")
+    @field_validator("image", mode="before")
+    @classmethod
     def deserialize_image(cls, v):
         """
         Deserializes the image field from JSON string to a dictionary.
@@ -131,6 +134,22 @@ class Feed(BaseModel):
         """
         return json.loads(v) if isinstance(v, str) else v
 
+    @log_and_return_default(default_value=None, message="Failed to serialize image JSON")
+    @field_serializer("image", mode="json")
+    def serialize_image(self, value):
+        """
+        Serializes the image field from a dictionary to a JSON string.
+        This method is invoked during serialization to ensure that the image field
+        is always stored as a JSON string in Azure Table Storage.
+        Args:
+            value: The value of the image field, which may be a dictionary or None.
+        Returns:
+            str: The serialized image field as a JSON string, or None if the value is None.
+        """
+        logger.debug("Serializing image field: %s", value)
+        return json.dumps(value) if value else None
+
+    @log_and_return_default(default_value=None, message="Failed to create feed")
     @classmethod
     def create(cls, **kwargs) -> "Feed":
         """
@@ -146,14 +165,10 @@ class Feed(BaseModel):
             Feed: The created and persisted Feed instance.
         """
         logger.debug("Creating Feed with kwargs: %s", kwargs)
-        
-        feed = cls.model_validate(dict(kwargs), strict=False)
-        feed.save()
-        
-        logger.debug("Feed created: %s", feed)
-
+        feed = cls.model_validate(kwargs, strict=False)
         return feed
 
+    @log_and_raise_error("Failed to save feed")
     def save(self) -> None:
         """
         Saves or updates the Feed instance in Azure Table Storage.
@@ -163,6 +178,7 @@ class Feed(BaseModel):
         """
         table_client.upsert_entity(self.model_dump(mode="json", by_alias=True))
 
+    @log_and_raise_error("Failed to delete feed")
     def delete(self) -> None:
         """
         Deletes the Feed instance from Azure Table Storage.
