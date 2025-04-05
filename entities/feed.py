@@ -10,7 +10,7 @@ from functools import cached_property
 import os
 import json
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import xxhash
 from azure.data.tables import TableClient
@@ -18,8 +18,9 @@ from pydantic import (BaseModel, ConfigDict, Field, HttpUrl,
                       computed_field, field_serializer, field_validator)
 
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import log_and_raise_error, log_and_return_default
+from utils.decorators import log_and_raise_error
 from utils.logger import LoggerFactory
+from utils.parser import parse_date
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -50,6 +51,7 @@ class Feed(BaseModel):
         populate_by_name=True,
         from_attributes=True,
         validate_assignment=True,
+        strict=False,
         extra="ignore"
     )
 
@@ -119,10 +121,9 @@ class Feed(BaseModel):
         """
         return xxhash.xxh64(self.link).hexdigest()
 
-    @log_and_return_default(default_value=None, message="Failed to parse image JSON")
     @field_validator("image", mode="before")
     @classmethod
-    def deserialize_image(cls, v):
+    def deserialize_image(cls, v: Any) -> Any:
         """
         Deserializes the image field from JSON string to a dictionary.
         This method is invoked before validation to ensure that the image field
@@ -134,7 +135,23 @@ class Feed(BaseModel):
         """
         return json.loads(v) if isinstance(v, str) else v
 
-    @log_and_return_default(default_value=None, message="Failed to serialize image JSON")
+    @field_validator("updated", mode="before")
+    @classmethod
+    def validate_updated(cls, v: Any) -> Any:
+        """
+        Validates and converts the 'updated' field to a datetime object.
+
+        This method ensures that the 'updated' field is always a datetime object,
+        regardless of whether it was stored as a string or another type in Azure Table Storage.
+
+        Args:
+            v (Any): The value of the 'updated' field, which may be a string, timestamp, or datetime object.
+
+        Returns:
+            datetime: The validated 'updated' field as a datetime object.
+        """
+        return parse_date(v)
+    
     @field_serializer("image", mode="json")
     def serialize_image(self, value):
         """
@@ -148,25 +165,6 @@ class Feed(BaseModel):
         """
         logger.debug("Serializing image field: %s", value)
         return json.dumps(value) if value else None
-
-    @log_and_return_default(default_value=None, message="Failed to create feed")
-    @classmethod
-    def create(cls, **kwargs) -> "Feed":
-        """
-        Instantiates a Feed from provided properties and persists it to Azure Table Storage.
-
-        This method computes the unique identifier from the feed link (if not explicitly set)
-        and immediately upserts the feed entity into the storage table.
-
-        Args:
-            **kwargs: Keyword arguments defining the Feed properties.
-
-        Returns:
-            Feed: The created and persisted Feed instance.
-        """
-        logger.debug("Creating Feed with kwargs: %s", kwargs)
-        feed = cls.model_validate(kwargs, strict=False)
-        return feed
 
     @log_and_raise_error("Failed to save feed")
     def save(self) -> None:

@@ -11,7 +11,7 @@ from functools import cached_property
 import io
 import os
 from datetime import datetime
-from typing import Literal, Optional, Set
+from typing import Any, Literal, Optional, Set
 
 import numpy as np
 import requests
@@ -26,6 +26,7 @@ from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error, log_and_return_default, retry_on_failure
 from utils.helper import truncate_by_sentences
 from utils.logger import LoggerFactory
+from utils.parser import parse_date
 
 MAX_SUMMARY_SENTENCES = 20
 MAX_SUMMARY_CHARACTERS = 2000
@@ -67,6 +68,7 @@ class Entry(BaseModel):
         populate_by_name=True,
         from_attributes=True,
         validate_assignment=True,
+        strict=False,
         extra="ignore",
         field_serialization_order=[
             "PartitionKey",  # Azure Table partition key
@@ -189,32 +191,32 @@ class Entry(BaseModel):
         """
         return self._get_content_blob() or self._get_content_http()
 
-    @content.setter
-    def content(self, value: str) -> None:
-        """
-        Set the content of the entry.
+    # @content.setter
+    # def content(self, value: str) -> None:
+    #     """
+    #     Set the content of the entry.
 
-        Args:
-            value (str): The content to set.
-        """
-        self.__dict__["content"] = value
+    #     Args:
+    #         value (str): The content to set.
+    #     """
+    #     self.__dict__["content"] = value
 
-    @log_and_raise_error("Failed to create entry")
+    @field_validator("published", mode="before")
     @classmethod
-    def create(cls, **kwargs) -> "Entry":
+    def validate_published(cls, v: Any) -> Any:
         """
-        Create a new Entry instance.
+        Validates and converts the 'published' field to a datetime object.
+
+        This method ensures that the 'published' field is always a datetime object,
+        regardless of whether it was stored as a string, timestamp, or another type in Azure Table Storage.
 
         Args:
-            **kwargs: Keyword arguments containing the entry data.
+            v (Any): The value of the 'published' field, which may be a string, timestamp, or datetime object.
 
         Returns:
-            Entry: The created Entry instance.
-
-        Raises:
-            ValueError: If the data is invalid.
+            datetime: The validated 'published' field as a datetime object.
         """
-        return cls.model_validate(dict(kwargs), strict=False)
+        return parse_date(v)
 
     @log_and_raise_error("Failed to save entry")
     def save(self) -> None:
@@ -306,6 +308,7 @@ class AIEnrichment(BaseModel):
         from_attributes=True, 
         validate_assignment=True,
         arbitrary_types_allowed=True,
+        strict=False,
         extra="ignore",
         field_serialization_order=[
             "PartitionKey",
@@ -387,15 +390,15 @@ class AIEnrichment(BaseModel):
         """
         return self._get_embeddings_blob
 
-    @embeddings.setter
-    def embeddings(self, value: np.ndarray) -> None:
-        """
-        Set the embeddings numpy array.
+    # @embeddings.setter
+    # def embeddings(self, value: np.ndarray) -> None:
+    #     """
+    #     Set the embeddings numpy array.
 
-        Args:
-            value (np.ndarray): The embeddings to set.
-        """
-        self.__dict__["embeddings"] = value
+    #     Args:
+    #         value (np.ndarray): The embeddings to set.
+    #     """
+    #     self.__dict__["embeddings"] = value
 
     @log_and_raise_error("Failed to save AI enrichment")
     def save(self) -> None:
@@ -411,23 +414,6 @@ class AIEnrichment(BaseModel):
         Delete the AIEnrichment instance from Azure Table Storage using its partition and row keys.
         """
         ai_enrichment_table_client.delete_entity(self.partition_key, self.row_key)
-
-    @log_and_raise_error("Failed to create AI enrichment")
-    @classmethod
-    def create(cls, **kwargs) -> "AIEnrichment":
-        """
-        Create a new AIEnrichment instance.
-
-        Args:
-            **kwargs: Keyword arguments containing the AI enrichment data.
-
-        Returns:
-            AIEnrichment: The created AIEnrichment instance.
-
-        Raises:
-            ValueError: If the data is invalid.
-        """
-        return cls.model_validate(dict(kwargs), strict=False)
     
     @log_and_return_default(default_value=None, message="Failed to retrieve embeddings blob")
     def _get_embeddings_blob(self) -> Optional[np.ndarray]:

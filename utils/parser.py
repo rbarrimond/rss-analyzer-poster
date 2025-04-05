@@ -19,12 +19,15 @@ from utils.decorators import log_and_return_default
 def parse_date(date_str: str | int | float | None) -> datetime:
     """
     Parses a date string, timestamp, or None into a datetime object.
+
     - If the input is None, returns None.
-    - If the input is an integer or float, treats it as a timestamp.
-    - If the input is a string, attempts to parse it as a date string.
-    Logs and returns a default value of None if parsing fails.
+    - If the input is an integer or float, treats it as a Unix timestamp.
+    - If the input is a string, attempts to parse it as a date string using dateutil.parser.
+    - Logs and returns a default value of None if parsing fails.
+
     Args:
         date_str (str | int | float | None): The date string, timestamp, or None to parse.
+
     Returns:
         datetime: The parsed datetime object, or None if parsing fails.
     """
