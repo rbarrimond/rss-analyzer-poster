@@ -1,25 +1,27 @@
 # Azure libraries
 azure-ai-inference
-azure-data-tables
-azure-functions
-azure-identity
-azure-keyvault-secrets
-azure-storage-blob
-azure-storage-queue
+azure-data-tables>=12.6
+azure-functions>=1.21
+azure-identity>=1.21
+azure-keyvault-secrets>=4.9
+azure-storage-blob>=12.25
+azure-storage-queue>=12.12
 
 # RSS parsing
-feedparser
+feedparser>=6.0
 
 # Microsoft Graph & O365 libraries
-msal
-msgraph-core
-msgraph-sdk
-O365
+msal>=1.32
+msgraph-core>=1.3
+msgraph-sdk>=1.24
+O365>=2.1
 
 # AI and data manipulation
-openai
-pandas
-xxhash
+openai>=1.66
+pandas>=2.2
+xxhash>=3.5
+beautifulsoup4>=4.13
+nltk>=3.8
 
 # Post processing
-markdown
+markdown>=3.7
