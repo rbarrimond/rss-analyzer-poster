@@ -22,8 +22,7 @@ from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
                       field_validator)
 
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import (log_and_raise_error, log_and_return_default,
-                              retry_on_failure)
+from utils.decorators import log_and_raise_error, log_and_return_default, retry_on_failure
 from utils.helper import truncate_by_sentences
 from utils.logger import LoggerFactory
 
