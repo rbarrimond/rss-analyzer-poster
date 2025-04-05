@@ -136,7 +136,7 @@ class RssIngestionService:
         return response.status_code == 200
 
     @log_execution_time()
-    @log_and_raise_error("Failed to ingest feed.")
+    @log_and_raise_error("Failed to ingest feed")
     def ingest_feed(self, feed_url: str) -> None:
         """
         Enqueue an RSS feed for further processing.
@@ -178,7 +178,7 @@ class RssIngestionService:
         entry_keys: List[Tuple[str, str]] = []
         # Create the entries and persist them
         for entry in feed_data.entries:
-            entry = Entry.create(partition_key=partition_key, **entry)
+            entry = Entry.create(partition_key=partition_key, feed_key=feed.row_key, **entry)
             # Force loading content to ensure it is persisted
             _ = entry.content
             entry.save()
