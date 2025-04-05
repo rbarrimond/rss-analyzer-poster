@@ -67,7 +67,7 @@ class RssIngestionService:
             raise ValueError("Missing required configuration values.")
 
     @log_execution_time()
-    @log_and_raise_error("RSS Ingestion Service failed to enqueue feeds.")
+    @log_and_raise_error("RSS Ingestion Service failed to enqueue feeds")
     def enqueue_feeds(self):
         """
         Process each configured RSS feed by checking for updates and enqueuing updated feeds.
@@ -78,6 +78,7 @@ class RssIngestionService:
         """
         queue_client: QueueClient = acf.get_instance().get_queue_service_client(
             ).get_queue_client(os.getenv('RSS_FEED_QUEUE_NAME'))
+        logger.debug("Queue client for queue: %s", os.getenv('RSS_FEED_QUEUE_NAME'))
 
         for feed in self.feeds:
             if self._check_feed_for_update(feed['url'], self.last_ingestion):
@@ -97,17 +98,18 @@ class RssIngestionService:
                     json.dumps(payload).encode('utf-8')).decode('utf-8')
                 message = queue_client.send_message(encoded_payload)
 
-                logger.info("RSS Ingestion Service enqueued feed: %s", str(feed))
-                logger.debug("Enqueued feed: %s, message_id: %s, eTag: %s",
-                             str(feed), message.id, message.get('_etag'))
+                logger.info("RSS Ingestion Service enqueued feed: %s", feed)
+                logger.debug("Queue message sent: %s", message)
 
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
         ConfigLoader().RssIngestionService['last_ingestion'] = datetime.now(timezone.utc)
-        logger.info("RSS Ingestion Service enqueued feeds successfully.")
+        logger.info("RSS Ingestion Service enqueued feeds successfully. Last run updated to: %s",
+                    ConfigLoader().RssIngestionService['last_ingestion'])
+        
 
     @log_execution_time()
-    @log_and_return_default(False, message="Failed to check feed for update.")
+    @log_and_return_default(False, message="Failed to check feed for update")
     @retry_on_failure(retries=1, delay=0)  # Retry once with delay coming from timeout in requests.get()
     def _check_feed_for_update(self, feed_url: str, modified_since: datetime = EPOCH_RFC1123) -> bool:
         """
@@ -129,10 +131,10 @@ class RssIngestionService:
         response.raise_for_status()
 
         if response.status_code == 304:
-            logger.debug("Feed not updated: %s", feed_url)
+            logger.debug("Feed at %s not updated.", feed_url)
             return False
 
-        logger.debug("Feed updated: %s (final URL: %s)", feed_url, response.url)
+        logger.debug("Feed at %s updated (final URL: %s).", feed_url, response.url)
         return response.status_code == 200
 
     @log_execution_time()
@@ -153,27 +155,25 @@ class RssIngestionService:
         queue_client: QueueClient = acf.get_instance().get_queue_service_client(
             ).get_queue_client(os.getenv('RSS_ENTRY_QUEUE_NAME'))
         if not queue_client:
-            raise ValueError(f"Missing required configuration values: queue_client={queue_client}")
-        logger.debug("Queue client: %s", queue_client)
+            raise ValueError(f"Unable to create queue client named {os.getenv('RSS_ENTRY_QUEUE_NAME')}.")
+        logger.debug("Queue client for queue: %s", os.getenv('RSS_ENTRY_QUEUE_NAME'))
         
         feed_data: FeedParserDict = feedparser.parse(feed_url)
-        if not feed_data.feed:
-            raise ValueError(f"Invalid feed URL: {feed_url}")
-        logger.debug("Feed parsed.")
+        if not feed_data['feed']:
+            logger.debug("Feed data is empty or invalid: %s", feed_data)
+            raise ValueError(f"Feed data is empyt or invalid at URL: {feed_url}")
+        logger.debug("Feed %s parsed at URL: %s", feed_data['feed']['title'], feed_url)
 
         # Update the Feed table with the feed metadata
         feed: Feed = Feed.create(**feed_data.feed)
-        if not feed:
-            raise ValueError(f"Invalid feed metadata: {feed_data.feed}")
-        if not feed.link:
-            feed.link = feed_url
-        logger.debug("Feed metadata: %s", feed)
+        feed.link = feed_url if not feed.link else feed.link
+        logger.debug("Feed created: %s", feed)
        
         # The partition key is derived from the feed title, converted to snake_case
         partition_key = re.sub(r'(?<!^)(?=[A-Z])', '_', str(feed.title)).lower().strip()
         # Remove any characters not allowed (only alphanumeric, dash, and underscore are permitted)
         partition_key = re.sub(r'[^a-z0-9_-]', '', partition_key)
-        logger.debug("Feed partition key: %s", partition_key)
+        logger.debug("Feed entry partition key: %s", partition_key)
 
         entry_keys: List[Tuple[str, str]] = []
         # Create the entries and persist them
@@ -190,7 +190,6 @@ class RssIngestionService:
             "envelope": {
                 "status": "retrieved",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "eTag": None
             },
             "feed": feed.row_key,
             "entries": entry_keys
@@ -199,5 +198,6 @@ class RssIngestionService:
         encoded_payload = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
         message = queue_client.send_message(encoded_payload)
 
-        logger.debug("Retrieved feed: %s, message_id: %s, eTag: %s",
-                     feed_url, message.id, message.get('_etag'))
+        logger.debug("Queued feed and entries: %s", payload)
+        logger.debug("Queue message sent: %s", message)
+        logger.info("Feed %s ingested and queued successfully.", feed.row_key)
