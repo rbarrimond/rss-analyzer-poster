@@ -165,7 +165,7 @@ class RssIngestionService:
         logger.debug("Feed %s parsed at URL: %s", feed_data['feed']['title'], feed_url)
 
         # Update the Feed table with the feed metadata
-        feed: Feed = Feed.create(**feed_data.feed)
+        feed = Feed(**feed_data['feed'])
         feed.link = feed_url if not feed.link else feed.link
         logger.debug("Feed created: %s", feed)
        
@@ -178,7 +178,7 @@ class RssIngestionService:
         entry_keys: List[Tuple[str, str]] = []
         # Create the entries and persist them
         for entry in feed_data.entries:
-            entry = Entry.create(partition_key=partition_key, feed_key=feed.row_key, **entry)
+            entry = Entry(partition_key=partition_key, feed_key=feed.row_key, **entry)
             # Force loading content to ensure it is persisted
             _ = entry.content
             entry.save()
