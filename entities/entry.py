@@ -1,12 +1,13 @@
 """Module for RSS entry entity representation and persistence.
 
-This module defines the Entry and AIEnrichment classes.
-Entry models an RSS entry with properties such as title, link, and content.
-The content is retrieved using a caching mechanism, hashed via xxhash,
-and stored in Azure Blob Storage. AIEnrichment handles AI-based enhancements,
-including summaries, readability scores, engagement data, and embeddings kept as numpy arrays.
+This module defines the Entry and AIEnrichment classes. Entry models an RSS
+entry with properties such as title, link, and content. The content is cached,
+hashed via xxhash, and stored in Azure Blob Storage. AIEnrichment handles
+AI-based enhancements like summaries, readability scores, engagement data, and
+embeddings.
 """
 
+from functools import cached_property
 import io
 import os
 from datetime import datetime
@@ -28,6 +29,8 @@ from utils.logger import LoggerFactory
 
 MAX_SUMMARY_SENTENCES = 20
 MAX_SUMMARY_CHARACTERS = 2000
+
+# Placeholder character for internal text processing, ensuring no conflicts with HTML content.
 PRIVATE_SEPARATOR = "\uE000"
 
 logger = LoggerFactory.get_logger(__name__)
@@ -59,14 +62,26 @@ class Entry(BaseModel):
         source: Source information for the entry, stored as a dictionary.
         content: Content of the entry, retrieved from Azure Blob Storage or via HTTP if not cached.
         row_key: Computed row key derived from the entry's id using xxhash.
-        content_key: Hash of the content, used as a unique identifier for the content blob in Azure Blob Storage.
     """
     model_config = ConfigDict(
         populate_by_name=True,
         from_attributes=True,
         validate_assignment=True,
-        extra="ignore"
-        )
+        extra="ignore",
+        field_serialization_order=[
+            "PartitionKey",  # Azure Table partition key
+            "RowKey",        # Internal hash ID used as RowKey
+            "FeedKey",
+            "Id",
+            "Title",
+            "Link",
+            "Published",
+            "Author",
+            "Summary",
+            "Source",
+            "Content"        # Blob-backed field
+        ]
+    )
     
     partition_key: str = Field(
         default="entry",
@@ -74,18 +89,11 @@ class Entry(BaseModel):
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key (alphanumeric, dash, underscore only) to ensure a valid blob path."
         )
-    title: str = Field(
-        default="Untitled",
-        alias="Title",
-        min_length=1,
-        max_length=200,
-        description="Title of the entry."
-        )
     id: str = Field(
         alias="Id",
         min_length=1,
         max_length=200,
-        description="Internal unique identifier of the entry. This is not the same as the entry's link."
+        description="Original ID from the RSS feed. Used only as a source identifier and is not guaranteed to be unique or stable."
         )
     feed_key: str = Field(
         alias="FeedKey",
@@ -94,14 +102,16 @@ class Entry(BaseModel):
         pattern=r"^[a-f0-9]{16}$",
         description="RowKey of the feed to which this entry belongs."
         )
+    title: str = Field(
+        default="Untitled",
+        alias="Title",
+        min_length=1,
+        max_length=200,
+        description="Title of the entry."
+        )
     link: HttpUrl = Field(
         alias="Link",
         description="URL link to the entry. Must be a valid HTTP or HTTPS URL."
-        )
-    _content: Optional[str] = Field(
-        default=None,
-        exclude=True,
-        description="Content of the entry. This is not persisted in Azure Table Storage."
         )
     published: datetime = Field(
         default=datetime(1970, 1, 1),
@@ -127,11 +137,14 @@ class Entry(BaseModel):
         )
 
     def model_post_init(self, __context):
-        # Initialize the content attribute from the context data.
-        # This is used to retrieve the content from the context if available.
-        # This can happen if the this entry is initialzied with feed data
-        # and the content is already available.
-        self._content = __context.get("data", {}).get("content")
+        """
+        Initialize the _content attribute from the context data.
+
+        This is used to retrieve the content from the context if available.
+        This can happen if this entry is initialized with feed data
+        and the content is already available.
+        """
+        self.content = __context.get("data", {}).get("content")
 
     @field_validator("summary", mode="before")
     @classmethod
@@ -151,8 +164,9 @@ class Entry(BaseModel):
         logger.debug("Cleaned summary: %s", cleaned)
         return truncate_by_sentences(cleaned, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS)
 
-    @computed_field(alias="RowKey", include=True, description="RowKey of the entry in Azure Table Storage.")
-    @property
+    @computed_field(alias="RowKey", include=True, 
+                    description="RowKey of the entry in Azure Table Storage, computed from the RSS entry's id.")
+    @cached_property
     def row_key(self) -> str:
         """
         Compute and return the row key derived from the entry's id.
@@ -161,45 +175,35 @@ class Entry(BaseModel):
             str: The computed row key as a hexadecimal hash.
         """
         return xxhash.xxh64(self.id).hexdigest()
-    
-    @computed_field(alias="ContentKey", include=True, description="Content key for the entry.")
-    @property
-    def content_key(self) -> Optional[str]:
-        """
-        Compute and return the content key for the entry.
 
-        The content key is a hash of the content. If the content is not available, it returns None.
-
-        Returns:
-            Optional[str]: The content key as a hexadecimal hash, or None if content is unavailable.
-        """
-        if self._content:
-            return xxhash.xxh64(self._content).hexdigest()
-        return None
-    
-    @computed_field(return_type=Optional[str])
-    @property
+    @computed_field(alias="Content", include=True, description="Cached content of the entry.")    
+    @cached_property
     def content(self) -> Optional[str]:
         """
-        Retrieve and return the content of the entry.
+        Retrieve the content of the entry.
 
-        The content is fetched from Azure Blob Storage if not already cached. If unavailable in storage, it is
-        retrieved via HTTP from the entry's link.
+        If the content is not already cached, it attempts to fetch it from Azure Blob Storage or via HTTP.
 
         Returns:
             Optional[str]: The content of the entry, or None if not available.
         """
-        if self._content is None:
-            val = self._get_content_blob() or self._get_content_http()
-            if val:
-                self._content = val
-        return self._content
+        return self._get_content_blob() or self._get_content_http()
+
+    @content.setter
+    def content(self, value: str) -> None:
+        """
+        Set the content of the entry.
+
+        Args:
+            value (str): The content to set.
+        """
+        self.__dict__["content"] = value
 
     @log_and_raise_error("Failed to create entry")
     @classmethod
     def create(cls, **kwargs) -> "Entry":
         """
-        Create a new Entry instance and save it to Azure Table Storage.
+        Create a new Entry instance.
 
         Args:
             **kwargs: Keyword arguments containing the entry data.
@@ -208,11 +212,9 @@ class Entry(BaseModel):
             Entry: The created Entry instance.
 
         Raises:
-            ValueError: If the data is invalid or the entry cannot be created.
+            ValueError: If the data is invalid.
         """
-        entry = cls.model_validate(dict(kwargs), strict=False)
-        entry.save()
-        return entry
+        return cls.model_validate(dict(kwargs), strict=False)
 
     @log_and_raise_error("Failed to save entry")
     def save(self) -> None:
@@ -221,7 +223,7 @@ class Entry(BaseModel):
 
         Serializes the current state of the Entry and updates the corresponding entity record in storage.
         """
-        if not self._content:
+        if not self.content:
             raise ValueError("Content is not available.")
         self._persist_content()
         entry_table_client.upsert_entity(self.model_dump(mode="json", by_alias=True))
@@ -233,9 +235,7 @@ class Entry(BaseModel):
 
         Removes the corresponding entity record using its partition and row keys.
         """
-        container_client.delete_blob(
-            blob=f"{self.partition_key}/{self.content_key}.txt"
-        )
+        container_client.delete_blob(blob=f"{self.partition_key}/{self.row_key}.txt")
         entry_table_client.delete_entity(self.partition_key, self.row_key)
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
@@ -248,19 +248,17 @@ class Entry(BaseModel):
         Returns:
             Optional[str]: The content as a string, or None if the blob is not available.
         """
-        key = self.content_key
-        if not key:
-            raise ValueError("Content key is not available.")
+        blob_name = f"{self.partition_key}/{self.row_key}_content.txt"
         blob = acf.get_instance().download_blob_content(
             container_client=container_client,
-            blob_name=f"{self.partition_key}/{key}.txt",
+            blob_name=blob_name,
         )
         if not blob:
-            raise ValueError("Blob not available.")
+            raise ValueError(f"Blob {blob_name} not available.")
         return blob
     
-    @log_and_return_default(default_value=None, message="Failed to retrieve content")
-    @retry_on_failure(retries=3, delay=2000)
+    @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
+    @retry_on_failure(retries=1, delay=2000)
     def _get_content_http(self) -> Optional[str]:
         """
         Retrieve the content via HTTP from the entry's link.
@@ -282,55 +280,61 @@ class Entry(BaseModel):
 
         Computes a hash of the content and uploads it to Azure Blob Storage under a path based on the partition key
         and the computed content hash.
-
-        Args:
-            value (str): The content to be persisted.
         """
-        if not self._content:
-            raise ValueError("Content is not available.")
-        hashed = xxhash.xxh64(self._content).hexdigest()
+        if not self.content:
+            raise ValueError("Content is not available from cache.")
         container_client.get_blob_client(
-            blob=f"{self.partition_key}/{hashed}.txt"
-        ).upload_blob(self._content, overwrite=True)
+            blob=f"{self.partition_key}/{self.row_key}_content.txt"
+        ).upload_blob(self.content, overwrite=True)
 
 
 class AIEnrichment(BaseModel):
     """Represents an AI enrichment entity associated with an RSS entry.
 
     Attributes:
-        entry: The associated RSS entry.
+        partition_key: Inherited partition key from the associated entry.
+        row_key: Computed row key derived from the associated entry's id.
         summary: AI-generated summary of the entry.
         grade_level: Flesch-Kincaid readability score.
         difficulty: Dale-Chall readability score.
         engagement_score: Engagement score for the entry.
         engagement_categories: List of engagement categories (e.g., 'Liked', 'Comment', 'Shared').
         embeddings: AI-generated embeddings as a numpy array; retrieved from Azure Blob Storage if not already cached.
-        partition_key: Inherited partition key from the associated entry.
-        row_key: Computed row key derived from the associated entry's id.
     """
     model_config = ConfigDict(
         populate_by_name=True, 
         from_attributes=True, 
         validate_assignment=True,
         arbitrary_types_allowed=True,
-        extra="ignore"
-        )
+        extra="ignore",
+        field_serialization_order=[
+            "PartitionKey",
+            "RowKey",
+            "Summary",
+            "GradeLevel",
+            "Difficulty",
+            "EngagementScore",
+            "EngagementCategories",
+            "Embeddings"
+        ]
+    )
+    
     partition_key: str = Field(
         default="entry",
         alias="PartitionKey",
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key of the associated entry (alphanumeric, dash, underscore only) to ensure a valid blob path."
-    )
+        )
     row_key: str = Field(
         default="entry",
         alias="PartitionKey",
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Row key of the associated entry (alphanumeric, dash, underscore only) to ensure a valid blob path."
-    )
+        )
     summary: Optional[str] = Field(
         default=None,
         alias="Summary",
-        max_length=500,
+        max_length=MAX_SUMMARY_CHARACTERS,
         description="AI generated summary"
         )
     grade_level: Optional[float] = Field(
@@ -339,14 +343,14 @@ class AIEnrichment(BaseModel):
         ge=0,
         le=15.0,
         description="Flesch-Kincaid readability score (0 = easiest, 12 = high school, 15+ = complex academic text)"
-    )
+        )
     difficulty: Optional[float] = Field(
         default=None,
         alias="Difficulty",
         ge=4.9,
         le=11.0,
         description="Dale-Chall readability score (4.9 = easy, 8.0 = difficult, 10+ = very difficult)"
-    )    
+        )    
     engagement_score: Optional[float] = Field(
         default=None,
         alias="EngagementScore",
@@ -361,37 +365,44 @@ class AIEnrichment(BaseModel):
         min_items=1,
         description="Categories of engagement"
         )
-    _embeddings: Optional[np.ndarray] = Field(
-        default=None,
-        exclude=True,
-        description="Cached embeddings of the entry."
-        )
 
     def model_post_init(self, __context):
-        embeddings: np.ndarray = __context.get("data", {}).get("embeddings")
-        if not all(embeddings, isinstance(embeddings, np.ndarray)):
-            raise ValueError("Embeddings must be a numpy array.")
-        self._embeddings = embeddings
-
-    @computed_field(alias="Embeddings", include=False, description="AI generated embeddings")
-    @property
-    def embeddings(self) -> Optional[np.ndarray]:
-        """Retrieve the AI-generated embeddings.
-
-        Returns the embeddings numpy array from cache if available;
-        otherwise, loads it from Azure Blob Storage.
         """
-        if self._embeddings is None:
-            self._embeddings = self._get_embeddings_blob()
-        return self._embeddings
+        Initialize the embeddings attribute from the context data.
+
+        This is used to retrieve the embeddings from the context if available.
+        """
+        self.embeddings = __context.get("data", {}).get("embeddings")
+
+    @computed_field(alias="Embeddings", include=True, description="Cached embeddings of the entry.")
+    @cached_property
+    def embeddings(self) -> Optional[np.ndarray]:
+        """
+        Retrieve the embeddings numpy array from Azure Blob Storage.
+
+        If the embeddings are not already cached, fetch them from Azure Blob Storage.
+
+        Returns:
+            Optional[np.ndarray]: The embeddings numpy array, or None if not available.
+        """
+        return self._get_embeddings_blob
+
+    @embeddings.setter
+    def embeddings(self, value: np.ndarray) -> None:
+        """
+        Set the embeddings numpy array.
+
+        Args:
+            value (np.ndarray): The embeddings to set.
+        """
+        self.__dict__["embeddings"] = value
 
     @log_and_raise_error("Failed to save AI enrichment")
     def save(self) -> None:
         """
         Save the current AIEnrichment instance to Azure Table Storage.
         """
-        if self._embeddings:
-            self._persist_embeddings(self._embeddings)
+        self._persist_embeddings()
         ai_enrichment_table_client.upsert_entity(self.model_dump(mode="json", by_alias=True))
     
     @log_and_raise_error("Failed to delete AI enrichment")
@@ -401,49 +412,51 @@ class AIEnrichment(BaseModel):
         """
         ai_enrichment_table_client.delete_entity(self.partition_key, self.row_key)
 
+    @log_and_raise_error("Failed to create AI enrichment")
     @classmethod
     def create(cls, **kwargs) -> "AIEnrichment":
         """
-        Create the AIEnrichment instance to Azure Table Storage.
-        Validates the input data and saves the instance.
+        Create a new AIEnrichment instance.
+
         Args:
             **kwargs: Keyword arguments containing the AI enrichment data.
+
         Returns:
             AIEnrichment: The created AIEnrichment instance.
+
         Raises:
-            ValueError: If the data is invalid or cannot be created.
+            ValueError: If the data is invalid.
         """
-        enrichment = cls.model_validate(dict(kwargs), strict=False)
-        enrichment.save()
-        return enrichment
+        return cls.model_validate(dict(kwargs), strict=False)
     
     @log_and_return_default(default_value=None, message="Failed to retrieve embeddings blob")
     def _get_embeddings_blob(self) -> Optional[np.ndarray]:
         """
         Retrieve and load the embeddings numpy array from Azure Blob Storage.
 
-        Loads the numpy array from a blob identified by the partition key and embeddings key,
-        returning None if the blob is not available.
+        Returns:
+            Optional[np.ndarray]: The embeddings numpy array, or None if the blob is not available.
         """
         blob_bytes = acf.get_instance().download_blob_content(
             container_client=container_client,
             blob_name=f"{self.partition_key}/{self.row_key}.npy",
         )
-        if blob_bytes:
-            return np.load(io.BytesIO(blob_bytes))
-        return None
+        return np.load(io.BytesIO(blob_bytes)) if blob_bytes else None
 
-    def _persist_embeddings(self, value: np.ndarray) -> None:
+    @log_and_raise_error("Failed to persist embeddings")
+    @retry_on_failure(retries=1, delay=2000)
+    def _persist_embeddings(self) -> None:
         """
         Persist the embeddings numpy array to Azure Blob Storage.
- 
-        Serializes the numpy array, computes its hash, caches the array, and uploads it to Azure Blob Storage.
+
+        Serializes the numpy array and uploads it to Azure Blob Storage.
         """
-        buf = io.BytesIO()
-        np.save(buf, value)
-        buf.seek(0)
-        bytes_data = buf.getvalue()
-        hashed = xxhash.xxh64(bytes_data).hexdigest()
-        container_client.get_blob_client(
-            blob=f"{self.partition_key}/{hashed}.npy"
-            ).upload_blob(bytes_data, overwrite=True)
+        with io.BytesIO() as buf:
+            np.save(buf, self.embeddings)
+            buf.seek(0)
+            container_client.upload_blob(
+                name=f"{self.partition_key}/{self.row_key}.npy",
+                data=buf.getvalue(),
+                overwrite=True
+            )
+        logger.debug("Embeddings %s/%s persisted to blob storage.", self.partition_key, self.row_key)
