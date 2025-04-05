@@ -7,16 +7,16 @@ operations. The unique row key is computed from the feed link using xxhash.
 """
 
 import os
+import json
 from datetime import datetime
 from typing import Optional
 
 import xxhash
 from azure.data.tables import TableClient
-from dateutil import parser
-from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
-                      field_validator)
+from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field, field_validator)
 
 from utils.azclients import AzureClientFactory as acf
+from utils.decorators import log_and_return_default
 from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -46,7 +46,8 @@ class Feed(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         from_attributes=True,
-        validate_assignment=True
+        validate_assignment=True,
+        extra="ignore"
         )
     
     partition_key: str = Field(
@@ -92,38 +93,17 @@ class Feed(BaseModel):
         alias="Updated",
         description="Timestamp of the last update; defaults to the Unix epoch."
     )
-    # image: Optional[dict] = Field(
-    #     default=None,
-    #     alias="Image",
-    #     description="Associated image for the feed, stored as a dictionary."
-    # )
+    image: Optional[dict] = Field(
+        default=None,
+        alias="Image",
+        description="Associated image for the feed, stored as a dictionary."
+    )
     subtitle: Optional[str] = Field(
         default=None,
         alias="Subtitle",
         max_length=500,
         description="Subtitle of the feed."
     )
-
-    @field_validator("updated", mode="before")
-    @classmethod
-    def parse_updated(cls, v):
-        """
-        Validates and parses the updated field to ensure it is a datetime object.
-        If the input is a string, it attempts to parse it using dateutil.parser.
-        If parsing fails, it raises a ValueError.
-        Args:
-            v (str | datetime): The value to validate and parse.
-        Returns:
-            datetime: The parsed datetime object.
-        Raises:
-            ValueError: If the input cannot be parsed into a datetime object.
-        """
-        if isinstance(v, str):
-            try:
-                return parser.parse(v)
-            except Exception as e:
-                raise ValueError(f"Unable to parse updated datetime: {v}") from e
-        return v
 
     @computed_field(alias="RowKey", description="Unique identifier for the feed computed from its link.")
     @property
@@ -135,6 +115,21 @@ class Feed(BaseModel):
             str: The computed hash of the feed link.
         """
         return xxhash.xxh64(str(self.link).encode("utf-8")).hexdigest()
+
+    @classmethod
+    @field_validator("image", mode="before")
+    @log_and_return_default(default_value=None, message="Failed to parse image JSON")
+    def deserialize_image(cls, v):
+        """
+        Deserializes the image field from JSON string to a dictionary.
+        This method is invoked before validation to ensure that the image field
+        is always a dictionary, regardless of how it was stored in Azure Table Storage.
+        Args:
+            v: The value of the image field, which may be a JSON string or a dictionary.
+        Returns:
+            dict: The deserialized image field as a dictionary.
+        """
+        return json.loads(v) if isinstance(v, str) else v
 
     @classmethod
     def create(cls, **kwargs) -> "Feed":
@@ -150,13 +145,12 @@ class Feed(BaseModel):
         Returns:
             Feed: The created and persisted Feed instance.
         """
-        # Filter out unknown keys using updated model_fields
         logger.debug("Creating Feed with kwargs: %s", kwargs)
-        valid_kwargs = {k: v for k, v in kwargs.items() if k in Feed.model_fields.keys()}
-
-        feed = cls(**valid_kwargs)
-        response = table_client.upsert_entity(feed.model_dump(mode="json", by_alias=True))
-        logger.debug("Feed created: %s\n%s", feed, response)
+        
+        feed = cls.model_validate(dict(kwargs), strict=False)
+        feed.save()
+        
+        logger.debug("Feed created: %s", feed)
 
         return feed
 
