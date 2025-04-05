@@ -164,7 +164,7 @@ class Entry(BaseModel):
         logger.debug("Cleaned summary: %s", cleaned)
         return truncate_by_sentences(cleaned, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS)
 
-    @computed_field(alias="RowKey", include=True, 
+    @computed_field(alias="RowKey", 
                     description="RowKey of the entry in Azure Table Storage, computed from the RSS entry's id.")
     @cached_property
     def row_key(self) -> str:
@@ -176,7 +176,7 @@ class Entry(BaseModel):
         """
         return xxhash.xxh64(self.id).hexdigest()
 
-    @computed_field(alias="Content", include=True, description="Cached content of the entry.")    
+    @computed_field(alias="Content", description="Cached content of the entry.")    
     @cached_property
     def content(self) -> Optional[str]:
         """
@@ -374,7 +374,7 @@ class AIEnrichment(BaseModel):
         """
         self.embeddings = __context.get("data", {}).get("embeddings")
 
-    @computed_field(alias="Embeddings", include=True, description="Cached embeddings of the entry.")
+    @computed_field(alias="Embeddings", description="Cached embeddings of the entry.")
     @cached_property
     def embeddings(self) -> Optional[np.ndarray]:
         """
