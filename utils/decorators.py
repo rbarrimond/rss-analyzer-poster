@@ -20,9 +20,12 @@ Note:
 
 import functools
 import logging
-from typing import Type, Callable, Any
 import time
+import traceback
+from typing import Any, Callable, Type
+
 from utils.logger import LoggerFactory
+
 
 # Add helper to check for dunder functions
 def _is_dunder(func: Callable[..., Any]) -> bool:
@@ -76,7 +79,33 @@ def log_and_raise_error(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logger.error("%s: %s", message, e)
+                # Extract the last frame of the traceback for the decorated function
+                tb = traceback.extract_tb(e.__traceback__)
+                if tb:
+                    last_frame = tb[-1]  # Get the last frame in the traceback
+                    file_name = last_frame.filename
+                    line_number = last_frame.lineno
+                    logger.error(
+                        "%s: [%s] %s occurred in %s (file: %s, line: %d) with args: %s, kwargs: %s",
+                        message,
+                        type(e).__name__,  # Exception class name
+                        e,  # Exception message
+                        func.__name__,  # Function name
+                        file_name,  # File where the exception occurred
+                        line_number,  # Line number where the exception occurred
+                        args,  # Positional arguments
+                        kwargs,  # Keyword arguments
+                    )
+                else:
+                    logger.error(
+                        "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
+                        message,
+                        type(e).__name__,
+                        e,
+                        func.__name__,
+                        args,
+                        kwargs,
+                    )
                 raise exception_class(message) from e
         return wrapper
     return decorator
@@ -121,7 +150,33 @@ def log_and_ignore_error(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logger.error("%s: %s", message, e)
+                # Extract the last frame of the traceback for the decorated function
+                tb = traceback.extract_tb(e.__traceback__)
+                if tb:
+                    last_frame = tb[-1]
+                    file_name = last_frame.filename
+                    line_number = last_frame.lineno
+                    logger.error(
+                        "%s: [%s] %s occurred in %s (file: %s, line: %d) with args: %s, kwargs: %s",
+                        message,
+                        type(e).__name__,
+                        e,
+                        func.__name__,
+                        file_name,
+                        line_number,
+                        args,
+                        kwargs,
+                    )
+                else:
+                    logger.error(
+                        "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
+                        message,
+                        type(e).__name__,
+                        e,
+                        func.__name__,
+                        args,
+                        kwargs,
+                    )
                 # Error is ignored; default return is None.
         return wrapper
     return decorator
@@ -168,7 +223,33 @@ def log_and_return_default(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logger.error("%s: %s", message, e)
+                # Extract the last frame of the traceback for the decorated function
+                tb = traceback.extract_tb(e.__traceback__)
+                if tb:
+                    last_frame = tb[-1]
+                    file_name = last_frame.filename
+                    line_number = last_frame.lineno
+                    logger.error(
+                        "%s: [%s] %s occurred in %s (file: %s, line: %d) with args: %s, kwargs: %s",
+                        message,
+                        type(e).__name__,
+                        e,
+                        func.__name__,
+                        file_name,
+                        line_number,
+                        args,
+                        kwargs,
+                    )
+                else:
+                    logger.error(
+                        "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
+                        message,
+                        type(e).__name__,
+                        e,
+                        func.__name__,
+                        args,
+                        kwargs,
+                    )
                 return default_value
         return wrapper
     return decorator
