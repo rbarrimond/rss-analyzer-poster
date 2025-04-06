@@ -138,15 +138,15 @@ class Entry(BaseModel):
         description="Source of the entry."
         )
 
-    def model_post_init(self, __context):
-        """
-        Initialize the _content attribute from the context data.
+    # def model_post_init(self, __context):
+    #     """
+    #     Initialize the _content attribute from the context data.
 
-        This is used to retrieve the content from the context if available.
-        This can happen if this entry is initialized with feed data
-        and the content is already available.
-        """
-        self.content = __context.get("data", {}).get("content")
+    #     This is used to retrieve the content from the context if available.
+    #     This can happen if this entry is initialized with feed data
+    #     and the content is already available.
+    #     """
+    #     self.content = __context.get("data", {}).get("content")
 
     @field_validator("summary", mode="before")
     @classmethod
@@ -165,6 +165,24 @@ class Entry(BaseModel):
         cleaned = BeautifulSoup(v, "html.parser").get_text(separator=PRIVATE_SEPARATOR, strip=True)
         logger.debug("Cleaned summary: %s", cleaned)
         return truncate_by_sentences(cleaned, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS)
+
+    @field_validator("link", mode="before")
+    @classmethod
+    def validate_link(cls, v: Any) -> str:
+        """
+        Ensures the 'link' field is a valid string before being validated as an HttpUrl.
+
+        Args:
+            v (Any): The value of the 'link' field.
+
+        Returns:
+            str: The validated link as a string.
+        """
+        if isinstance(v, HttpUrl):
+            return str(v)
+        if not isinstance(v, str):
+            raise ValueError("The 'link' field must be a valid URL string.")
+        return v
 
     @computed_field(alias="RowKey", 
                     description="RowKey of the entry in Azure Table Storage, computed from the RSS entry's id.")
@@ -369,13 +387,13 @@ class AIEnrichment(BaseModel):
         description="Categories of engagement"
         )
 
-    def model_post_init(self, __context):
-        """
-        Initialize the embeddings attribute from the context data.
+    # def model_post_init(self, __context):
+    #     """
+    #     Initialize the embeddings attribute from the context data.
 
-        This is used to retrieve the embeddings from the context if available.
-        """
-        self.embeddings = __context.get("data", {}).get("embeddings")
+    #     This is used to retrieve the embeddings from the context if available.
+    #     """
+    #     self.embeddings = __context.get("data", {}).get("embeddings")
 
     @computed_field(alias="Embeddings", description="Cached embeddings of the entry.")
     @cached_property

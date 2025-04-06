@@ -13,6 +13,7 @@ from email.utils import format_datetime
 from typing import List, Tuple
 
 import feedparser
+from pydantic import HttpUrl
 import requests
 from azure.storage.queue import QueueClient
 from feedparser import FeedParserDict
@@ -166,7 +167,9 @@ class RssIngestionService:
 
         # Update the Feed table with the feed metadata
         feed = Feed(**feed_data['feed'])
-        feed.link = feed_url if not feed.link else feed.link
+        if not feed.link:
+            logger.debug("Feed link is missing in feed data: %s", feed_data['feed'])
+            feed.link = HttpUrl(feed_url)
         logger.debug("Feed created: %s", feed)
        
         # The partition key is derived from the feed title, converted to snake_case

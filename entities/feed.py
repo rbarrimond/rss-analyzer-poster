@@ -119,7 +119,25 @@ class Feed(BaseModel):
         Returns:
             str: The computed hash of the feed link.
         """
-        return xxhash.xxh64(self.link).hexdigest()
+        return xxhash.xxh64(str(self.link)).hexdigest()
+
+    @field_validator("link", mode="before")
+    @classmethod
+    def validate_link(cls, v: Any) -> str:
+        """
+        Ensures the 'link' field is a valid string before being validated as an HttpUrl.
+
+        Args:
+            v (Any): The value of the 'link' field.
+
+        Returns:
+            str: The validated link as a string.
+        """
+        if isinstance(v, HttpUrl):
+            return str(v)
+        if not isinstance(v, str):
+            raise ValueError("The 'link' field must be a valid URL string.")
+        return v
 
     @field_validator("image", mode="before")
     @classmethod
@@ -152,16 +170,22 @@ class Feed(BaseModel):
         """
         return parse_date(v)
     
-    @field_serializer("image", mode="json")
-    def serialize_image(self, value):
+    @field_serializer("image", mode="wrap")
+    def serialize_image(self, field, value, info):
         """
-        Serializes the image field from a dictionary to a JSON string.
-        This method is invoked during serialization to ensure that the image field
-        is always stored as a JSON string in Azure Table Storage.
+        Converts the image field from a dictionary to a JSON string for storage.
+
+        This method ensures that the image field is serialized as a JSON string
+        when saving the Feed instance to Azure Table Storage. If the value is None,
+        it returns None instead of a JSON string.
+
         Args:
-            value: The value of the image field, which may be a dictionary or None.
+            field: The model field being serialized.
+            value (dict | None): The image field value, which may be a dictionary or None.
+            info: Serialization context information.
+
         Returns:
-            str: The serialized image field as a JSON string, or None if the value is None.
+            str | None: The serialized image field as a JSON string, or None if the value is None.
         """
         logger.debug("Serializing image field: %s", value)
         return json.dumps(value) if value else None
