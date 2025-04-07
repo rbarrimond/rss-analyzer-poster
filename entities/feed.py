@@ -22,6 +22,9 @@ from utils.logger import LoggerFactory
 from utils.parser import parse_date
 
 logger = LoggerFactory.get_logger(__name__)
+
+RSS_FEEDS_TABLE_NAME = os.getenv("RSS_FEEDS_TABLE_NAME")
+
 class Feed(BaseModel):
     """
     Represents an RSS feed entity stored in Azure Table Storage.
@@ -192,7 +195,7 @@ class Feed(BaseModel):
         This method serializes the Feed instance and upserts the corresponding record
         in the storage table.
         """
-        acf.get_instance().table_upsert_entity(table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"),
+        acf.get_instance().table_upsert_entity(table_name=RSS_FEEDS_TABLE_NAME,
                                                entity=self.model_dump(mode="json", by_alias=True))
         logger.debug("Feed saved: %s", self.model_dump(mode="json", by_alias=True))
 
@@ -204,6 +207,6 @@ class Feed(BaseModel):
         This method removes the feed record from the storage table using its partition key
         and computed row key.
         """
-        acf.get_instance().table_delete_entity(table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"),
+        acf.get_instance().table_delete_entity(table_name=RSS_FEEDS_TABLE_NAME,
                                                entity=self.model_dump(mode="json", by_alias=True))
         logger.debug("Feed deleted: %s", self.model_dump(mode="json", by_alias=True))
