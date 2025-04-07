@@ -18,7 +18,7 @@ import requests
 import xxhash
 from bs4 import BeautifulSoup
 from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
-                      field_validator)
+                      field_validator, field_serializer)
 
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error, log_and_return_default, retry_on_failure
@@ -185,6 +185,17 @@ class Entry(BaseModel):
             Optional[str]: The content of the entry, or None if not available.
         """
         return self._get_content_blob() or self._get_content_http()
+
+    @field_serializer("content", mode="wrap")
+    def serialize_content(self, field, value, info):
+        """
+        Customize the serialization of the 'content' field.
+
+        Exclude the field when dumping to a dictionary but include it when serializing to JSON.
+        """
+        if info.mode == "dict":
+            return None  # Exclude from dict serialization
+        return value  # Include in JSON serialization
 
     @field_validator("published", mode="before")
     @classmethod
