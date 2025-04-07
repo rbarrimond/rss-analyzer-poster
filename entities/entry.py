@@ -28,9 +28,10 @@ from utils.parser import parse_date
 
 MAX_SUMMARY_SENTENCES = 20
 MAX_SUMMARY_CHARACTERS = 2000
+PRIVATE_SEPARATOR = "\uE000"  # Placeholder character for internal text processing
 
-# Placeholder character for internal text processing, ensuring no conflicts with HTML content.
-PRIVATE_SEPARATOR = "\uE000"
+RSS_ENTRY_CONTAINER_NAME = os.getenv("RSS_ENTRIES_CONTAINER_NAME")
+RSS_ENTRY_TABLE_NAME = os.getenv("RSS_ENTRIES_TABLE_NAME")
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -221,9 +222,9 @@ class Entry(BaseModel):
 
         Removes the corresponding entity record using its partition and row keys.
         """
-        acf.get_instance().delete_blob(container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+        acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
                                         blob_name=f"{self.partition_key}/{self.row_key}_content.txt")
-        acf.get_instance().table_delete_entity(os.getenv("RSS_ENTRY_TABLE_NAME"),
+        acf.get_instance().table_delete_entity(RSS_ENTRY_TABLE_NAME,
                                                 self.model_dump(mode="json", by_alias=True)
                                                 )
         logger.debug("Entry %s/%s deleted from blob storage.", self.partition_key, self.row_key)
@@ -242,7 +243,7 @@ class Entry(BaseModel):
         logger.debug("Retrieving content blob: %s", blob_name)
 
         blob = acf.get_instance().download_blob_content(
-            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+            container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=blob_name,
         )
         if not blob:
@@ -280,7 +281,7 @@ class Entry(BaseModel):
             raise ValueError("Content is not available from cache.")
 
         result = acf.get_instance().upload_blob_content(
-            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+            container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=f"{self.partition_key}/{self.row_key}_content.txt",
             data=self.content,
         )
@@ -390,7 +391,7 @@ class AIEnrichment(BaseModel):
             self._persist_embeddings(self.embeddings)
         else:
             self._persist_embeddings(embeddings)
-        acf.get_instance().table_upsert_entity(table_name=os.getenv("RSS_ENTRY_TABLE_NAME"),
+        acf.get_instance().table_upsert_entity(table_name=RSS_ENTRY_TABLE_NAME,
                                                 entity=self.model_dump(mode="json", by_alias=True))
         logger.debug("AI enrichment %s/%s saved.", self.partition_key, self.row_key)
     
@@ -399,9 +400,9 @@ class AIEnrichment(BaseModel):
         """
         Delete the AIEnrichment instance from Azure Table Storage using its partition and row keys.
         """
-        acf.get_instance().table_delete_entity(table_name=os.getenv("RSS_ENTRY_TABLE_NAME"),
+        acf.get_instance().table_delete_entity(table_name=RSS_ENTRY_TABLE_NAME,
                                                 entity=self.model_dump(mode="json", by_alias=True))
-        acf.get_instance().delete_blob(container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+        acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
                                         blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy")
         logger.debug("AI enrichment %s/%s deleted.", self.partition_key, self.row_key)
     
@@ -413,9 +414,8 @@ class AIEnrichment(BaseModel):
         Returns:
             Optional[np.ndarray]: The embeddings numpy array, or None if the blob is not available.
         """
-        
         blob_bytes = acf.get_instance().download_blob_content(
-            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+            container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy",
         )
         embeddings = np.load(io.BytesIO(blob_bytes))
@@ -432,7 +432,7 @@ class AIEnrichment(BaseModel):
         Serializes the numpy array and uploads it to Azure Blob Storage.
         """
         result = acf.get_instance().upload_blob_content(
-            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+            container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy",
             content=embeddings.tobytes()
         )
