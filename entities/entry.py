@@ -135,7 +135,7 @@ class Entry(BaseModel):
         Returns:
             str: The cleaned and truncated summary, or None if the input is empty.
         """
-        return clean_and_truncate_html_summary(v, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS, PRIVATE_SEPARATOR)
+        return clean_and_truncate_html_summary(v, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS)
 
     @field_validator("link", mode="before")
     @classmethod
