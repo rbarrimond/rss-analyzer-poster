@@ -187,6 +187,7 @@ class Entry(BaseModel):
 
         Exclude the field when dumping to a dictionary but include it when serializing to JSON.
         """
+        _ = field
         if info.mode == "dict":
             return None  # Exclude from dict serialization
         return value  # Include in JSON serialization
