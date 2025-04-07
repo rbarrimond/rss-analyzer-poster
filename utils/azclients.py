@@ -38,7 +38,7 @@ from azure.storage.queue import QueueServiceClient
 from msgraph import GraphServiceClient
 from O365 import Account
 
-from utils.decorators import (log_and_raise_error, log_execution_time,
+from utils.decorators import (log_and_raise_error, log_and_return_default, log_execution_time,
                               trace_class)
 from utils.logger import LoggerFactory
 
@@ -181,7 +181,7 @@ class AzureClientFactory:
         return self._openai_clients
 
     @log_execution_time()
-    @log_and_raise_error("Blob download failed")
+    @log_and_return_default(default_value=None, message="Blob download failed")
     def download_blob_content(self, container_name: str, blob_name: str) -> bytes | str:
         """
         Downloads the content of a blob from Azure Blob Storage.
@@ -208,7 +208,7 @@ class AzureClientFactory:
             return content
 
     @log_execution_time()
-    @log_and_raise_error("Blob upload failed")
+    @log_and_return_default(default_value=None, message="Blob upload failed")
     def upload_blob_content(self, container_name: str, blob_name: str, content: str | bytes) -> Dict[str, Any]:
         """
         Uploads content to a blob in Azure Blob Storage.
