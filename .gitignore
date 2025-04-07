@@ -147,6 +147,7 @@ funcpack/
 
 # Log files
 *.log
+*.log.*
 
 # Temporary files
 *.tmp
