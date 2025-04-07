@@ -29,22 +29,14 @@ class ConfigLoader:
             cls._instance = super(ConfigLoader, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, container: str = os.environ.get("CONFIG_CONTAINER_NAME", "config"),
+    def __init__(self, container_name: str = os.environ.get("CONFIG_CONTAINER_NAME", "config"),
                  blob_name: str = os.environ.get("CONFIG_BLOB_NAME", "config.json")):
         """Initialize the ConfigLoader by loading JSON configuration from Azure blob storage."""
         # Avoid reloading if already initialized
         if hasattr(self, 'config_data'):
             return  # already loaded
 
-        # Use provided container and blob_name parameters (defaulting to environment variables)
-        # Retrieve the blob client using the local variables directly
-        blob_client = acf.get_instance().get_blob_service_client().get_blob_client(
-            container=container,
-            blob=blob_name
-        )
-        # Parse the JSON content
-        self.config_data = json.loads(
-            blob_client.download_blob().readall().decode('utf-8'))
+        self.config_data = json.loads(acf.get_instance().download_blob_content(container_name, blob_name))
 
     @property
     def config(self) -> dict:
