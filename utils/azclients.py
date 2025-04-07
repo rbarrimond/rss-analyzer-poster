@@ -182,7 +182,7 @@ class AzureClientFactory:
 
     @log_execution_time()
     @log_and_return_default(default_value=None, message="Blob download failed")
-    def download_blob_content(self, container_name: str, blob_name: str) -> bytes | str:
+    def download_blob_content(self, container_name: str, blob_name: str) -> bytes | str | None:
         """
         Downloads the content of a blob from Azure Blob Storage.
 
@@ -194,18 +194,22 @@ class AzureClientFactory:
         if not all([container_name, blob_name]):
             raise ValueError(f"Container ({container_name}) or blob ({blob_name}) is missing.")
         
-        blob_client = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name)
-        blob_properties = blob_client.get_blob_properties()
-        content_type = blob_properties['content_settings']['content_type']
+        if blob_name in self.blob_service_client.get_container_client(container_name).list_blob_names():
+            blob_client = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+            blob_properties = blob_client.get_blob_properties()
+            content_type = blob_properties['content_settings']['content_type']
         
-        content = blob_client.download_blob().readall()
-        logger.debug("Blob downloaded %d bytes successfully: container=%s, blob=%s", len(content), container_name, blob_name)
+            content = blob_client.download_blob().readall()
+            logger.debug("Blob downloaded %d bytes successfully: container=%s, blob=%s", len(content), container_name, blob_name)
 
-        if content_type.startswith('text/') or content_type in ['application/json', 'application/xml',
-                                                                'application/x-yaml', 'application/xhtml+xml']:
-            return content.decode('utf-8')
+            if content_type.startswith('text/') or content_type in ['application/json', 'application/xml',
+                                                                    'application/x-yaml', 'application/xhtml+xml']:
+                return content.decode('utf-8')
+            else:
+                return content
         else:
-            return content
+            logger.warning("Blob not found: container=%s, blob=%s", container_name, blob_name)
+            return None
 
     @log_execution_time()
     @log_and_return_default(default_value=None, message="Blob upload failed")
@@ -297,23 +301,25 @@ class AzureClientFactory:
         
         return result
 
+    @log_execution_time()
+    @log_and_raise_error("Queue send failed")
     def send_to_queue(self, queue_name: str, payload: dict) -> None:
         """
         Sends a payload to an Azure Queue.
 
         This method encodes the given payload as a base64 string and sends it to the specified Azure Queue.
+        It uses the QueueServiceClient to interact with the Azure Queue Storage.
 
-        Args:
-            queue_name (str): The name of the Azure Queue.
-            payload (dict): The dictionary payload to encode and send.
-
-        Raises:
-            ValueError: If the queue client cannot be created or the queue name is invalid.
+        :param queue_name: The name of the Azure Queue.
+        :param payload: The dictionary payload to encode and send as a message.
+        :raises ValueError: If the queue client cannot be created or the queue name is invalid.
         """
         queue_client: QueueServiceClient = self.queue_service_client.get_queue_client(queue_name)
-        if not queue_client:
-            raise ValueError(f"Unable to create queue client named {queue_name}.")
 
+        # Encode the payload as a base64 string to ensure it is safely transmitted over the queue.
+        # Azure Storage Queues expect messages to be UTF-8 encoded strings with a maximum size of 64 KB.
+        # By encoding the payload as base64, we ensure that any special characters or binary data
+        # in the JSON payload are safely converted into a string format that can be transmitted.
         encoded_payload = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
         message = queue_client.send_message(encoded_payload)
 

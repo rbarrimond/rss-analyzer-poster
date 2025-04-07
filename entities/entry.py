@@ -242,17 +242,12 @@ class Entry(BaseModel):
         blob_name = f"{self.partition_key}/{self.row_key}_content.txt"
         logger.debug("Retrieving content blob: %s", blob_name)
 
-        blob = acf.get_instance().download_blob_content(
+        return acf.get_instance().download_blob_content(
             container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=blob_name,
         )
-        if not blob:
-            raise ValueError(f"Blob {blob_name} not available.")
 
-        return blob
-    
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
-    @retry_on_failure(retries=1, delay=2000)
     def _get_content_http(self) -> Optional[str]:
         """
         Retrieve the content via HTTP from the entry's link.
@@ -283,7 +278,7 @@ class Entry(BaseModel):
         result = acf.get_instance().upload_blob_content(
             container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=f"{self.partition_key}/{self.row_key}_content.txt",
-            data=self.content,
+            content=self.content,
         )
 
         logger.debug("Content %s/%s_content.txt persisted to blob storage with result %s.",
