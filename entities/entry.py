@@ -435,12 +435,21 @@ class AIEnrichment(BaseModel):
         """
         Persist the embeddings numpy array to Azure Blob Storage.
 
-        Serializes the numpy array and uploads it to Azure Blob Storage.
+        Serializes the numpy array using np.save and uploads it to Azure Blob Storage.
         """
+        if embeddings is None:
+            raise ValueError("Embeddings are not available to persist.")
+
+        # Serialize the embeddings to a BytesIO buffer
+        buffer = io.BytesIO()
+        np.save(buffer, embeddings)
+        buffer.seek(0)  # Reset the buffer position to the beginning
+
+        # Upload the serialized embeddings to Azure Blob Storage
         result = acf.get_instance().upload_blob_content(
             container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy",
-            content=embeddings.tobytes()
+            content=buffer.read(),
         )
 
         logger.debug("Embeddings %s/%s_embeddings.npy persisted to blob storage with result %s.",
