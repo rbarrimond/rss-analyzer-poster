@@ -77,10 +77,6 @@ class RssIngestionService:
         header. If new content is detected (HTTP 200), the feed is enqueued for downstream processing.
         After processing, the last_run timestamp is updated in the configuration.
         """
-        queue_client: QueueClient = acf.get_instance().get_queue_service_client(
-            ).get_queue_client(os.getenv('RSS_FEED_QUEUE_NAME'))
-        logger.debug("Queue client for queue: %s", os.getenv('RSS_FEED_QUEUE_NAME'))
-
         for feed in self.feeds:
             if self._check_feed_for_update(feed['url'], self.last_ingestion):
 
@@ -92,15 +88,8 @@ class RssIngestionService:
                     "feed": feed,
                 }
 
-                # Added logging to inspect the enqueued payload.
+                acf.get_instance().send_to_queue(os.getenv('RSS_FEED_QUEUE_NAME'), payload)
                 logger.debug("Enqueuing payload: %s", payload)
-
-                encoded_payload = base64.b64encode(
-                    json.dumps(payload).encode('utf-8')).decode('utf-8')
-                message = queue_client.send_message(encoded_payload)
-
-                logger.info("RSS Ingestion Service enqueued feed: %s", feed)
-                logger.debug("Queue message sent: %s", message)
 
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
@@ -198,9 +187,7 @@ class RssIngestionService:
             "entries": entry_keys
         }
 
-        encoded_payload = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
-        message = queue_client.send_message(encoded_payload)
+        logger.debug("Queuing feed and entries: %s", payload)
+        acf.get_instance().send_to_queue(os.getenv('RSS_ENTRY_QUEUE_NAME'), payload)
 
-        logger.debug("Queued feed and entries: %s", payload)
-        logger.debug("Queue message sent: %s", message)
         logger.info("Feed %s ingested and queued successfully.", feed.row_key)

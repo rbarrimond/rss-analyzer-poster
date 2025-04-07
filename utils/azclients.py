@@ -27,6 +27,8 @@ BlobStorageTokenBackend Methods:
 import os
 import threading
 from typing import Any, Dict
+import base64
+import json
 
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.exceptions import ClientAuthenticationError
@@ -295,3 +297,24 @@ class AzureClientFactory:
         logger.debug("Entity table=%s, entity=%s deleted with result %s", table_name, entity, result)
         
         return result
+
+    def send_to_queue(self, queue_name: str, payload: dict) -> None:
+        """
+        Sends a payload to an Azure Queue.
+
+        Args:
+            queue_name (str): The name of the Azure Queue.
+            payload (dict): The dictionary payload to encode and send.
+
+        Raises:
+            ValueError: If the queue client cannot be created.
+        """
+        queue_client: QueueServiceClient = self.queue_service_client.get_queue_client(queue_name)
+        if not queue_client:
+            raise ValueError(f"Unable to create queue client named {queue_name}.")
+
+        encoded_payload = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
+        message = queue_client.send_message(encoded_payload)
+
+        logger.debug("Payload sent to queue: %s", payload)
+        logger.debug("Queue message sent: %s", message)
