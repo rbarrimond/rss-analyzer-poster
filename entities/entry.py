@@ -16,8 +16,6 @@ from typing import Any, Literal, Optional, Set
 import numpy as np
 import requests
 import xxhash
-from azure.data.tables import TableClient
-from azure.storage.blob import ContainerClient
 from bs4 import BeautifulSoup
 from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
                       field_validator)
@@ -35,18 +33,6 @@ MAX_SUMMARY_CHARACTERS = 2000
 PRIVATE_SEPARATOR = "\uE000"
 
 logger = LoggerFactory.get_logger(__name__)
-
-entry_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
-    table_name=os.getenv("RSS_ENTRIES_TABLE_NAME", "entries")
-    )
-
-ai_enrichment_table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
-    table_name=os.getenv("AI_ENRICHMENT_TABLE_NAME", "ai_enrichment")
-    )
-
-container_client: ContainerClient = acf.get_instance().get_blob_service_client().get_container_client(
-    os.getenv("RSS_ENTRY_CONTAINER_NAME", "entries")
-    )
 
 class Entry(BaseModel):
     """Represents an RSS entry entity.
@@ -138,16 +124,6 @@ class Entry(BaseModel):
         description="Source of the entry."
         )
 
-    # def model_post_init(self, __context):
-    #     """
-    #     Initialize the _content attribute from the context data.
-
-    #     This is used to retrieve the content from the context if available.
-    #     This can happen if this entry is initialized with feed data
-    #     and the content is already available.
-    #     """
-    #     self.content = __context.get("data", {}).get("content")
-
     @field_validator("summary", mode="before")
     @classmethod
     def clean_and_truncate_summary(cls, v):
@@ -209,16 +185,6 @@ class Entry(BaseModel):
         """
         return self._get_content_blob() or self._get_content_http()
 
-    # @content.setter
-    # def content(self, value: str) -> None:
-    #     """
-    #     Set the content of the entry.
-
-    #     Args:
-    #         value (str): The content to set.
-    #     """
-    #     self.__dict__["content"] = value
-
     @field_validator("published", mode="before")
     @classmethod
     def validate_published(cls, v: Any) -> Any:
@@ -246,7 +212,7 @@ class Entry(BaseModel):
         if not self.content:
             raise ValueError("Content is not available.")
         self._persist_content()
-        entry_table_client.upsert_entity(self.model_dump(mode="json", by_alias=True))
+        acf.get_instance().table_upsert_entity(self.model_dump(mode="json", by_alias=True))
 
     @log_and_raise_error("Failed to delete entry")
     def delete(self) -> None:
@@ -255,8 +221,12 @@ class Entry(BaseModel):
 
         Removes the corresponding entity record using its partition and row keys.
         """
-        container_client.delete_blob(blob=f"{self.partition_key}/{self.row_key}.txt")
-        entry_table_client.delete_entity(self.partition_key, self.row_key)
+        acf.get_instance().delete_blob(container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+                                        blob_name=f"{self.partition_key}/{self.row_key}_content.txt")
+        acf.get_instance().table_delete_entity(os.getenv("RSS_ENTRY_TABLE_NAME"),
+                                                self.model_dump(mode="json", by_alias=True)
+                                                )
+        logger.debug("Entry %s/%s deleted from blob storage.", self.partition_key, self.row_key)
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
     def _get_content_blob(self) -> Optional[str]:
@@ -269,12 +239,15 @@ class Entry(BaseModel):
             Optional[str]: The content as a string, or None if the blob is not available.
         """
         blob_name = f"{self.partition_key}/{self.row_key}_content.txt"
+        logger.debug("Retrieving content blob: %s", blob_name)
+
         blob = acf.get_instance().download_blob_content(
-            container_client=container_client,
+            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
             blob_name=blob_name,
         )
         if not blob:
             raise ValueError(f"Blob {blob_name} not available.")
+
         return blob
     
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
@@ -289,6 +262,8 @@ class Entry(BaseModel):
         Returns:
             Optional[str]: The content of the entry, or None if the HTTP request fails.
         """
+        logger.debug("Retrieving content from HTTP link: %s", self.link)
+
         response = requests.get(self.link, timeout=10)
         return response.text if response.status_code == 200 else response.raise_for_status()
 
@@ -298,14 +273,20 @@ class Entry(BaseModel):
         """
         Persist the content to Azure Blob Storage.
 
-        Computes a hash of the content and uploads it to Azure Blob Storage under a path based on the partition key
-        and the computed content hash.
+        Uploads the content to Azure Blob Storage under a path based on the partition key
+        and the row key.
         """
         if not self.content:
             raise ValueError("Content is not available from cache.")
-        container_client.get_blob_client(
-            blob=f"{self.partition_key}/{self.row_key}_content.txt"
-        ).upload_blob(self.content, overwrite=True)
+
+        result = acf.get_instance().upload_blob_content(
+            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+            blob_name=f"{self.partition_key}/{self.row_key}_content.txt",
+            data=self.content,
+        )
+
+        logger.debug("Content %s/%s_content.txt persisted to blob storage with result %s.",
+                     self.partition_key, self.row_key, result)
 
 
 class AIEnrichment(BaseModel):
@@ -371,7 +352,7 @@ class AIEnrichment(BaseModel):
         ge=4.9,
         le=11.0,
         description="Dale-Chall readability score (4.9 = easy, 8.0 = difficult, 10+ = very difficult)"
-        )    
+        )
     engagement_score: Optional[float] = Field(
         default=None,
         alias="EngagementScore",
@@ -387,14 +368,6 @@ class AIEnrichment(BaseModel):
         description="Categories of engagement"
         )
 
-    # def model_post_init(self, __context):
-    #     """
-    #     Initialize the embeddings attribute from the context data.
-
-    #     This is used to retrieve the embeddings from the context if available.
-    #     """
-    #     self.embeddings = __context.get("data", {}).get("embeddings")
-
     @computed_field(alias="Embeddings", description="Cached embeddings of the entry.")
     @cached_property
     def embeddings(self) -> Optional[np.ndarray]:
@@ -408,30 +381,29 @@ class AIEnrichment(BaseModel):
         """
         return self._get_embeddings_blob
 
-    # @embeddings.setter
-    # def embeddings(self, value: np.ndarray) -> None:
-    #     """
-    #     Set the embeddings numpy array.
-
-    #     Args:
-    #         value (np.ndarray): The embeddings to set.
-    #     """
-    #     self.__dict__["embeddings"] = value
-
     @log_and_raise_error("Failed to save AI enrichment")
-    def save(self) -> None:
+    def save(self, embeddings: np.ndarray = None) -> None:
         """
         Save the current AIEnrichment instance to Azure Table Storage.
         """
-        self._persist_embeddings()
-        ai_enrichment_table_client.upsert_entity(self.model_dump(mode="json", by_alias=True))
+        if not embeddings:
+            self._persist_embeddings(self.embeddings)
+        else:
+            self._persist_embeddings(embeddings)
+        acf.get_instance().table_upsert_entity(table_name=os.getenv("RSS_ENTRY_TABLE_NAME"),
+                                                entity=self.model_dump(mode="json", by_alias=True))
+        logger.debug("AI enrichment %s/%s saved.", self.partition_key, self.row_key)
     
     @log_and_raise_error("Failed to delete AI enrichment")
     def delete(self) -> None:
         """
         Delete the AIEnrichment instance from Azure Table Storage using its partition and row keys.
         """
-        ai_enrichment_table_client.delete_entity(self.partition_key, self.row_key)
+        acf.get_instance().table_delete_entity(table_name=os.getenv("RSS_ENTRY_TABLE_NAME"),
+                                                entity=self.model_dump(mode="json", by_alias=True))
+        acf.get_instance().delete_blob(container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+                                        blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy")
+        logger.debug("AI enrichment %s/%s deleted.", self.partition_key, self.row_key)
     
     @log_and_return_default(default_value=None, message="Failed to retrieve embeddings blob")
     def _get_embeddings_blob(self) -> Optional[np.ndarray]:
@@ -441,26 +413,29 @@ class AIEnrichment(BaseModel):
         Returns:
             Optional[np.ndarray]: The embeddings numpy array, or None if the blob is not available.
         """
+        
         blob_bytes = acf.get_instance().download_blob_content(
-            container_client=container_client,
-            blob_name=f"{self.partition_key}/{self.row_key}.npy",
+            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+            blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy",
         )
-        return np.load(io.BytesIO(blob_bytes)) if blob_bytes else None
+        embeddings = np.load(io.BytesIO(blob_bytes))
+        
+        logger.debug("Embeddings %s/%s_embeddings.npy loaded from blob storage.", self.partition_key, self.row_key)
+        return embeddings
 
     @log_and_raise_error("Failed to persist embeddings")
     @retry_on_failure(retries=1, delay=2000)
-    def _persist_embeddings(self) -> None:
+    def _persist_embeddings(self, embeddings: np.ndarray) -> None:
         """
         Persist the embeddings numpy array to Azure Blob Storage.
 
         Serializes the numpy array and uploads it to Azure Blob Storage.
         """
-        with io.BytesIO() as buf:
-            np.save(buf, self.embeddings)
-            buf.seek(0)
-            container_client.upload_blob(
-                name=f"{self.partition_key}/{self.row_key}.npy",
-                data=buf.getvalue(),
-                overwrite=True
-            )
-        logger.debug("Embeddings %s/%s persisted to blob storage.", self.partition_key, self.row_key)
+        result = acf.get_instance().upload_blob_content(
+            container_name=os.getenv("RSS_ENTRY_CONTAINER_NAME"),
+            blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy",
+            content=embeddings.tobytes()
+        )
+
+        logger.debug("Embeddings %s/%s_embeddings.npy persisted to blob storage with result %s.",
+                     self.partition_key, self.row_key, result)
