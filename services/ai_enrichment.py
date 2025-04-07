@@ -43,26 +43,30 @@ logger = LoggerFactory.get_logger(__name__)
 @trace_class
 class AIEnrichmentService:
     """
-    RssIngestionService is responsible for processing and analyzing RSS feeds.
-
-    Key Responsibilities:
-    - Downloading and parsing RSS feed content from Azure Blob Storage.
-    - Storing parsed RSS feed entries into Azure Table Storage.
-    - Analyzing recent articles from Microsoft Lists using Azure OpenAI.
-    - Updating Microsoft Lists with summaries and engagement scores.
-
-    Dependencies:
-    - Azure Blob Storage for storing configuration files and role content.
-    - Microsoft Graph API for interacting with Microsoft Lists.
-    - Azure OpenAI for generating summaries and engagement scores.
-    - feedparser for parsing RSS feeds.
+    Service for AI-driven enrichment of RSS feed data.
     """
-
     def __init__(self):
         """
-        Initializes the RssIngestionService instance and sets up the AzureClientFactory.
+        Initializes the AIEnrichmentService and sets up the AzureClientFactory.
         """
         self.acf = acf.get_instance()
+        self.openai_clients = self.acf.openai_clients
+        self.table_service_client = self.acf.table_service_client
+
+    def enrich_data(self, data: dict) -> dict:
+        """
+        Enriches RSS feed data using Azure OpenAI models.
+
+        :param data: The RSS feed data to enrich.
+        :return: The enriched data.
+        """
+        logger.info("Enriching data using OpenAI models.")
+        # Example usage of OpenAI clients
+        model_client = self.openai_clients.get("MODEL_SUMMARY")
+        if not model_client:
+            raise ValueError("OpenAI client for MODEL_SUMMARY is not configured.")
+        # ...existing enrichment logic...
+        return data
 
     @log_and_raise_error("Failed to read and store RSS feeds.")
     def read_and_store_feeds(self, config_container_name: str = os.getenv('CONFIG_CONTAINER_NAME'),
