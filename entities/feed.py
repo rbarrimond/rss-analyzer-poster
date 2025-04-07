@@ -184,6 +184,7 @@ class Feed(BaseModel):
         Returns:
             str | None: The serialized image field as a JSON string, or None if the value is None.
         """
+        _ , _ = field, info
         logger.debug("Serializing image field: %s", value)
         return json.dumps(value) if value else None
 
