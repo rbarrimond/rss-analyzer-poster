@@ -4,10 +4,8 @@ This module handles the loading of configuration, conditional HTTP checking of R
 and enqueuing updated feeds (with entry IDs) into an Azure Queue for downstream processing.
 """
 
-import json
 import os
 import re
-import base64
 from datetime import datetime, timezone
 from email.utils import format_datetime
 from typing import List, Tuple
@@ -15,7 +13,6 @@ from typing import List, Tuple
 import feedparser
 from pydantic import HttpUrl
 import requests
-from azure.storage.queue import QueueClient
 from feedparser import FeedParserDict
 
 from entities.entry import Entry
@@ -40,24 +37,25 @@ class RssIngestionService:
     It loads the configuration, checks for feed updates using conditional HTTP GET requests,
     and enqueues updated feeds along with their entry IDs for subsequent processing.
 
+    This class uses the AzureClientFactory to send messages to Azure Queues.
+
     Raises:
         ValueError: If required configuration (feeds list or related values) is missing.
 
     Attributes:
-        feed_urls (list): List of RSS feed URLs to process.
+        feeds (list): List of RSS feed configurations to process.
         last_ingestion (datetime): Timestamp indicating the last successful ingestion.
     """
 
     def __init__(self):
         """
-        Initialize the RssQueueingService instance.
+        Initialize the RssIngestionService instance.
 
         Reads the feeds list and Azure queue settings from the configuration (or environment).
-        Sets up an Azure QueueClient for sending messages and initializes a last_run timestamp
-        used to determine if feeds have new content.
+        Initializes a last_ingestion timestamp used to determine if feeds have new content.
 
         Raises:
-            ValueError: When mandatory configuration values (feeds, queue name, or queue client) are absent.
+            ValueError: When mandatory configuration values (feeds or queue settings) are absent.
         """
         config: dict = ConfigLoader().RssIngestionService
         self.feeds: list = config.get('feeds', [])
@@ -74,8 +72,10 @@ class RssIngestionService:
         Process each configured RSS feed by checking for updates and enqueuing updated feeds.
 
         For each feed URL, a conditional HTTP GET is performed using an 'If-Modified-Since'
-        header. If new content is detected (HTTP 200), the feed is enqueued for downstream processing.
-        After processing, the last_run timestamp is updated in the configuration.
+        header. If new content is detected (HTTP 200), the feed is enqueued for downstream processing
+        using the AzureClientFactory's send_to_queue method.
+
+        After processing, the last_ingestion timestamp is updated in the configuration.
         """
         for feed in self.feeds:
             if self._check_feed_for_update(feed['url'], self.last_ingestion):
@@ -107,7 +107,14 @@ class RssIngestionService:
 
         Sends a GET request with an 'If-Modified-Since' header formatted as RFC1123
         and a User-Agent header. Follows redirects to ensure the final resource is reached.
-        Returns True if the feed returns HTTP 200 (indicating new content) and False if HTTP 304.
+
+        Args:
+            feed_url (str): The URL of the RSS feed to check.
+            modified_since (datetime): The timestamp to use for the 'If-Modified-Since' header.
+
+        Returns:
+            bool: True if the feed returns HTTP 200 (indicating new content), False if HTTP 304.
+
         Raises:
             requests.exceptions.HTTPError: When the HTTP request fails.
         """
@@ -135,18 +142,18 @@ class RssIngestionService:
 
         Parses the RSS feed to retrieve metadata and extract entry IDs.
         Constructs a JSON payload that includes:
-          - An envelope with the state "enqueued", a current ISO-formatted timestamp, and a null eTag.
+          - An envelope with the state "retrieved" and a current ISO-formatted timestamp.
           - The feed metadata.
           - A list of entry IDs.
-        The payload is then sent to the Azure queue.
+
+        The payload is then sent to the Azure queue using the AzureClientFactory's send_to_queue method.
+
+        Args:
+            feed_url (str): The URL of the RSS feed to ingest.
+
         Raises:
             ValueError: If the feed metadata is missing, indicating an invalid RSS feed.
         """
-        queue_client: QueueClient = acf.get_instance().get_queue_service_client(
-            ).get_queue_client(os.getenv('RSS_ENTRY_QUEUE_NAME'))
-        if not queue_client:
-            raise ValueError(f"Unable to create queue client named {os.getenv('RSS_ENTRY_QUEUE_NAME')}.")
-        logger.debug("Queue client for queue: %s", os.getenv('RSS_ENTRY_QUEUE_NAME'))
         
         feed_data: FeedParserDict = feedparser.parse(feed_url)
         if not feed_data['feed']:
@@ -187,7 +194,5 @@ class RssIngestionService:
             "entries": entry_keys
         }
 
-        logger.debug("Queuing feed and entries: %s", payload)
         acf.get_instance().send_to_queue(os.getenv('RSS_ENTRY_QUEUE_NAME'), payload)
-
-        logger.info("Feed %s ingested and queued successfully.", feed.row_key)
+        logger.info("Feed %s ingested and queued successfully.", feed_data['feed']['title'])

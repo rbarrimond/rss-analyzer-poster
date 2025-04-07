@@ -7,21 +7,20 @@ Classes:
 
 AzureClientFactory Methods:
     get_instance: Returns a singleton instance of the AzureClientFactory class.
-    get_blob_service_client: Returns a BlobServiceClient using DefaultAzureCredential.
+    blob_service_client: Property to get or create a BlobServiceClient using DefaultAzureCredential.
+    table_service_client: Property to get or create a TableServiceClient using DefaultAzureCredential.
+    queue_service_client: Property to get or create a QueueServiceClient using DefaultAzureCredential.
+    graph_client: Property to get or create a Microsoft Graph client using DefaultAzureCredential.
+    o365_account: Property to get or create an authenticated O365 Account object.
+    openai_clients: Property to get or create authenticated Azure OpenAI clients for various models.
+    send_to_queue: Sends a payload to an Azure Queue.
     download_blob_content: Downloads the content of a blob from Azure Blob Storage.
     upload_blob_content: Uploads content to a blob in Azure Blob Storage.
-    get_table_service_client: Returns a TableServiceClient using DefaultAzureCredential.
-    get_openai_clients: Returns authenticated Azure OpenAI clients for various models.
-    get_queue_service_client: Returns a QueueServiceClient using DefaultAzureCredential.
-    get_graph_client: Returns an authenticated Microsoft Graph client using DefaultAzureCredential.
-    get_o365_account: Returns an authenticated O365 Account object using DefaultAzureCredential.
+    delete_blob: Deletes a blob from Azure Blob Storage.
+    table_upsert_entity: Upserts an entity into an Azure Table Storage table.
+    table_delete_entity: Deletes an entity from an Azure Table Storage table.
 
-BlobStorageTokenBackend Methods:
-    __init__: Initializes the BlobStorageTokenBackend with container, blob, and connection details.
-    load_token: Loads a token from Azure Blob Storage.
-    save_token: Saves a token to Azure Blob Storage.
-    delete_token: Deletes a token from Azure Blob Storage.
-    check_token: Checks the existence of a token in Azure Blob Storage.
+This module follows Azure best practices for authentication and client creation.
 """
 
 import os
@@ -302,12 +301,14 @@ class AzureClientFactory:
         """
         Sends a payload to an Azure Queue.
 
+        This method encodes the given payload as a base64 string and sends it to the specified Azure Queue.
+
         Args:
             queue_name (str): The name of the Azure Queue.
             payload (dict): The dictionary payload to encode and send.
 
         Raises:
-            ValueError: If the queue client cannot be created.
+            ValueError: If the queue client cannot be created or the queue name is invalid.
         """
         queue_client: QueueServiceClient = self.queue_service_client.get_queue_client(queue_name)
         if not queue_client:
