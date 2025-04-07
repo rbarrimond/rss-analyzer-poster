@@ -16,19 +16,17 @@ from typing import Any, Literal, Optional, Set
 import numpy as np
 import requests
 import xxhash
-from bs4 import BeautifulSoup
 from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
                       field_validator, field_serializer)
 
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error, log_and_return_default, retry_on_failure
-from utils.helper import truncate_by_sentences
+from utils.helper import clean_and_truncate_html_summary
 from utils.logger import LoggerFactory
 from utils.parser import parse_date
 
 MAX_SUMMARY_SENTENCES = 20
 MAX_SUMMARY_CHARACTERS = 2000
-PRIVATE_SEPARATOR = "\uE000"  # Placeholder character for internal text processing
 
 RSS_ENTRY_CONTAINER_NAME = os.getenv("RSS_ENTRIES_CONTAINER_NAME")
 RSS_ENTRY_TABLE_NAME = os.getenv("RSS_ENTRIES_TABLE_NAME")
@@ -129,7 +127,7 @@ class Entry(BaseModel):
     @classmethod
     def clean_and_truncate_summary(cls, v):
         """
-        Clean and truncate the summary to a specified number of sentences or characters.
+        Clean and truncate the summary while preserving HTML structure.
 
         Args:
             v (str): The summary text to clean and truncate.
@@ -137,11 +135,7 @@ class Entry(BaseModel):
         Returns:
             str: The cleaned and truncated summary, or None if the input is empty.
         """
-        if not v:
-            return v
-        cleaned = BeautifulSoup(v, "html.parser").get_text(separator=PRIVATE_SEPARATOR, strip=True)
-        logger.debug("Cleaned summary: %s", cleaned)
-        return truncate_by_sentences(cleaned, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS)
+        return clean_and_truncate_html_summary(v, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS, PRIVATE_SEPARATOR)
 
     @field_validator("link", mode="before")
     @classmethod
