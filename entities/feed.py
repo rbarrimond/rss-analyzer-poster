@@ -13,7 +13,6 @@ from datetime import datetime
 from typing import Any, Optional
 
 import xxhash
-from azure.data.tables import TableClient
 from pydantic import (BaseModel, ConfigDict, Field, HttpUrl,
                       computed_field, field_serializer, field_validator)
 
@@ -23,11 +22,6 @@ from utils.logger import LoggerFactory
 from utils.parser import parse_date
 
 logger = LoggerFactory.get_logger(__name__)
-
-table_client: TableClient = acf.get_instance().get_table_service_client().get_table_client(
-    table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"))
-
-
 class Feed(BaseModel):
     """
     Represents an RSS feed entity stored in Azure Table Storage.
@@ -198,7 +192,9 @@ class Feed(BaseModel):
         This method serializes the Feed instance and upserts the corresponding record
         in the storage table.
         """
-        table_client.upsert_entity(self.model_dump(mode="json", by_alias=True))
+        acf.get_instance().table_upsert_entity(table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"),
+                                               entity=self.model_dump(mode="json", by_alias=True))
+        logger.debug("Feed saved: %s", self.model_dump(mode="json", by_alias=True))
 
     @log_and_raise_error("Failed to delete feed")
     def delete(self) -> None:
@@ -208,4 +204,6 @@ class Feed(BaseModel):
         This method removes the feed record from the storage table using its partition key
         and computed row key.
         """
-        table_client.delete_entity(self.partition_key, self.row_key)
+        acf.get_instance().table_delete_entity(table_name=os.getenv("RSS_FEEDS_TABLE_NAME", "feeds"),
+                                               entity=self.model_dump(mode="json", by_alias=True))
+        logger.debug("Feed deleted: %s", self.model_dump(mode="json", by_alias=True))
