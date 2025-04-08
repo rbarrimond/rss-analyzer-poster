@@ -65,7 +65,6 @@ class RssIngestionService:
             logger.debug("Missing configuration values: feeds=%s", self.feeds)
             raise ValueError("Missing required configuration values.")
 
-    @log_execution_time()
     @log_and_raise_error("RSS Ingestion Service failed to enqueue feeds")
     def enqueue_feeds(self):
         """
@@ -98,7 +97,6 @@ class RssIngestionService:
                     ConfigLoader().RssIngestionService['last_ingestion'])
         
 
-    @log_execution_time()
     @log_and_return_default(False, message="Failed to check feed for update")
     @retry_on_failure(retries=1, delay=0)  # Retry once with delay coming from timeout in requests.get()
     def _check_feed_for_update(self, feed_url: str, modified_since: datetime = EPOCH_RFC1123) -> bool:
@@ -134,7 +132,6 @@ class RssIngestionService:
         logger.debug("Feed at %s updated (final URL: %s).", feed_url, response.url)
         return response.status_code == 200
 
-    @log_execution_time()
     @log_and_raise_error("Failed to ingest feed")
     def ingest_feed(self, feed_url: str) -> None:
         """
