@@ -1,16 +1,12 @@
 import logging
 import threading
-import pytest
 from unittest.mock import MagicMock, patch
-from utils.decorators import (
-    log_and_ignore_error,
-    log_and_raise_error,
-    log_and_return_default,
-    log_execution_time,
-    retry_on_failure,
-    trace_class,
-    trace_method,
-)
+
+import pytest
+
+from utils.decorators import (log_and_ignore_error, log_and_raise_error,
+                              log_and_return_default, log_execution_time,
+                              retry_on_failure, trace_class, trace_method)
 
 # Mock logger for testing
 mock_logger = MagicMock()
@@ -74,20 +70,23 @@ def test_log_and_raise_error_thread_safe():
     def faulty_function():
         raise RuntimeError("Original error")
 
-    run_in_threads(
-        lambda: pytest.raises(ValueError, match="Custom error message")(faulty_function)
-    )
-    assert mock_logger.error.call_count == 1
+    def thread_target():
+        with pytest.raises(ValueError, match="Custom error message"):
+            faulty_function()
+
+    run_in_threads(thread_target)
+    assert mock_logger.error.call_count == 1  # Ensure the error is logged exactly once
 
 def test_log_and_return_default_thread_safe():
     @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
     def faulty_function():
         raise RuntimeError("Original error")
 
-    run_in_threads(
-        lambda: pytest.raises(
-            ValueError, match="Custom error message")(faulty_function)
-    )
+    def thread_target():
+        result = faulty_function()
+        assert result == "default"
+
+    run_in_threads(thread_target)
     assert mock_logger.error.call_count == 1
 
 # ------------------------------

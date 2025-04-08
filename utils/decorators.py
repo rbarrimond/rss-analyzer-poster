@@ -48,7 +48,8 @@ def _is_dunder(func: Callable[..., Any]) -> bool:
 def log_and_raise_error(
     message: str = "An unexpected error occurred.",
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
-    exception_class: Type[Exception] = Exception
+    exception_class: Type[Exception] = Exception,
+    log_level: int = logging.ERROR  # Added log_level parameter
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and raise a specified exception."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -59,15 +60,17 @@ def log_and_raise_error(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
+                # Ensure consistent error message
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
-                _log_once(logger, error_message)
+                _log_once(logger, error_message, log_level)  # Use log_level
                 raise exception_class(message) from e
         return wrapper
     return decorator
 
 def log_and_ignore_error(
     message: str = "An unexpected error occurred.",
-    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR)
+    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
+    log_level: int = logging.ERROR  # Added log_level parameter
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and ignore it."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -79,7 +82,7 @@ def log_and_ignore_error(
                 return func(*args, **kwargs)
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
-                _log_once(logger, error_message)
+                _log_once(logger, error_message, log_level)  # Use log_level
                 return None
         return wrapper
     return decorator
@@ -87,7 +90,8 @@ def log_and_ignore_error(
 def log_and_return_default(
     default_value: Any,
     message: str = "An unexpected error occurred.",
-    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR)
+    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
+    log_level: int = logging.ERROR  # Added log_level parameter
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and return a default value."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -99,7 +103,7 @@ def log_and_return_default(
                 return func(*args, **kwargs)
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
-                _log_once(logger, error_message)
+                _log_once(logger, error_message, log_level)  # Use log_level
                 return default_value
         return wrapper
     return decorator
