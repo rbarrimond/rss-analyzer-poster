@@ -20,10 +20,9 @@ from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
                       field_validator, field_serializer)
 
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import log_and_raise_error, log_and_return_default, retry_on_failure
-from utils.helper import clean_and_truncate_html_summary
+from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure
 from utils.logger import LoggerFactory
-from utils.parser import parse_date
+from utils.parser import normalize_html, html_to_markdown, parse_date, truncate_markdown
 
 MAX_SUMMARY_SENTENCES = 20
 MAX_SUMMARY_CHARACTERS = 2000
@@ -135,7 +134,13 @@ class Entry(BaseModel):
         Returns:
             str: The cleaned and truncated summary, or None if the input is empty.
         """
-        return clean_and_truncate_html_summary(v, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS)
+        if not v:
+            return None
+        v = normalize_html(v)
+        v = html_to_markdown(v)
+        v = truncate_markdown(v, MAX_SUMMARY_SENTENCES, MAX_SUMMARY_CHARACTERS)
+        logger.debug("Summary cleaned and truncated to %d characters.", len(v))
+        return v
 
     @field_validator("link", mode="before")
     @classmethod
@@ -245,7 +250,7 @@ class Entry(BaseModel):
         Returns:
             Optional[str]: The content as a string, or None if the blob is not available.
         """
-        blob_name = f"{self.partition_key}/{self.row_key}_content.txt"
+        blob_name = f"{self.partition_key}/{self.row_key}_content.md"
         logger.debug("Retrieving content blob: %s", blob_name)
 
         return acf.get_instance().download_blob_content(
@@ -253,6 +258,7 @@ class Entry(BaseModel):
             blob_name=blob_name,
         )
 
+    @log_execution_time()
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
     def _get_content_http(self) -> Optional[str]:
         """
@@ -267,7 +273,14 @@ class Entry(BaseModel):
         logger.debug("Retrieving content from HTTP link: %s", self.link)
 
         response = requests.get(self.link, timeout=10)
-        return response.text if response.status_code == 200 else response.raise_for_status()
+        if response.status_code == 200:
+            logger.debug("Content retrieved successfully from HTTP link.")
+            norm_html = normalize_html(response.text)
+            markdown = html_to_markdown(norm_html)
+            logger.debug("Content converted to markdown. Length %d characters.", len(markdown))
+            return markdown
+        else:
+            response.raise_for_status()
 
     @log_and_raise_error("Failed to persist content")
     @retry_on_failure(retries=1, delay=2000)
@@ -283,7 +296,7 @@ class Entry(BaseModel):
 
         result = acf.get_instance().upload_blob_content(
             container_name=RSS_ENTRY_CONTAINER_NAME,
-            blob_name=f"{self.partition_key}/{self.row_key}_content.txt",
+            blob_name=f"{self.partition_key}/{self.row_key}_content.md",
             content=self.content,
         )
 
@@ -387,6 +400,8 @@ class AIEnrichment(BaseModel):
     def save(self, embeddings: np.ndarray = None) -> None:
         """
         Save the current AIEnrichment instance to Azure Table Storage.
+
+        If embeddings are provided, they are persisted to Azure Blob Storage.
         """
         if not embeddings:
             self._persist_embeddings(self.embeddings)
@@ -400,6 +415,8 @@ class AIEnrichment(BaseModel):
     def delete(self) -> None:
         """
         Delete the AIEnrichment instance from Azure Table Storage using its partition and row keys.
+
+        Also deletes the associated embeddings blob from Azure Blob Storage.
         """
         acf.get_instance().table_delete_entity(table_name=RSS_ENTRY_TABLE_NAME,
                                                 entity=self.model_dump(mode="json", by_alias=True))
