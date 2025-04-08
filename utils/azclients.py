@@ -180,7 +180,6 @@ class AzureClientFactory:
                 logger.info("✅ Azure OpenAI %s client created successfully.", model)
         return self._openai_clients
 
-    @log_execution_time()
     @log_and_return_default(default_value=None, message="Blob download failed")
     def download_blob_content(self, container_name: str, blob_name: str) -> bytes | str | None:
         """
@@ -211,7 +210,6 @@ class AzureClientFactory:
             logger.warning("Blob not found: container=%s, blob=%s", container_name, blob_name)
             return None
 
-    @log_execution_time()
     @log_and_return_default(default_value=None, message="Blob upload failed")
     def upload_blob_content(self, container_name: str, blob_name: str, content: str | bytes) -> Dict[str, Any]:
         """
@@ -236,7 +234,6 @@ class AzureClientFactory:
 
         return result
 
-    @log_execution_time()
     @log_and_raise_error("Blob delete failed")
     def delete_blob(self, container_name: str, blob_name: str) -> None:
         """
@@ -255,7 +252,6 @@ class AzureClientFactory:
         result = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name).delete_blob()
         logger.debug("Blob deleted from container=%s, blob=%s with result: %s", container_name, blob_name, result)
 
-    @log_execution_time()
     @log_and_raise_error("Table entity upsert failed")
     def table_upsert_entity(self, table_name: str, entity: dict) -> dict:
         """
@@ -279,7 +275,6 @@ class AzureClientFactory:
         
         return result
     
-    @log_execution_time()
     @log_and_raise_error("Table entity delete failed")
     def table_delete_entity(self, table_name: str, entity: dict) -> None:
         """
@@ -301,7 +296,6 @@ class AzureClientFactory:
         
         return result
 
-    @log_execution_time()
     @log_and_raise_error("Queue send failed")
     def send_to_queue(self, queue_name: str, payload: dict) -> None:
         """
