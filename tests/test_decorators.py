@@ -94,8 +94,8 @@ def test_trace_method():
 
     result = sample_method(3, 4)
     assert result == 7
-    mock_logger.debug.assert_any_call("sample_method has triggered.")
-    mock_logger.debug.assert_any_call("sample_method has finished in")
+    mock_logger.debug.assert_any_call("%s.%s has triggered.", "", "sample_method")
+    mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "", "sample_method", mock_logger.debug.call_args_list[-1][0][3])
 
 def test_trace_class():
     @trace_class
@@ -109,8 +109,10 @@ def test_trace_class():
     instance = SampleClass()
     assert instance.method_one(5) == 10
     assert instance.method_two(7) == 10
-    mock_logger.debug.assert_any_call("SampleClass.method_one has triggered.")
-    mock_logger.debug.assert_any_call("SampleClass.method_two has triggered.")
+    mock_logger.debug.assert_any_call("%s.%s has triggered.", "SampleClass", "method_one")
+    mock_logger.debug.assert_any_call("%s.%s has triggered.", "SampleClass", "method_two")
+    mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "SampleClass", "method_one", mock_logger.debug.call_args_list[-2][0][3])
+    mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "SampleClass", "method_two", mock_logger.debug.call_args_list[-1][0][3])
 
 def test_trace_class_no_recursion():
     @trace_class
