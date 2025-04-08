@@ -27,15 +27,25 @@ import threading
 from utils.logger import LoggerFactory
 
 # Thread-safe set for tracking logged exceptions
-_logged_exceptions_lock = threading.Lock()
-_logged_exceptions = set()
+class LogOnceTracker:
+    """Thread-safe tracker for logging messages only once."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._logged_exceptions = set()
+
+    def log_once(self, logger: logging.Logger, level: int, message: str, *args: Any) -> None:
+        """Log a message only once across threads using the specified logging level."""
+        with self._lock:
+            if message not in self._logged_exceptions:
+                logger.log(level, message, *args)
+                self._logged_exceptions.add(message)
+
+# Create a shared instance of LogOnceTracker
+_log_once_tracker = LogOnceTracker()
 
 def _log_once(logger: logging.Logger, level: int, message: str, *args: Any) -> None:
-    """Log a message only once across threads using the specified logging level."""
-    with _logged_exceptions_lock:
-        if message not in _logged_exceptions:
-            logger.log(level, message, *args)
-            _logged_exceptions.add(message)
+    """Wrapper around LogOnceTracker to maintain the same interface."""
+    _log_once_tracker.log_once(logger, level, message, *args)
 
 def _is_dunder(func: Callable[..., Any]) -> bool:
     """Check if a function is a dunder method."""
@@ -63,6 +73,7 @@ def log_and_raise_error(
                 # Ensure consistent error message
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
                 _log_once(logger, log_level, error_message)  # Use log_level
+                _log_once(logger, log_level, error_message)  # Use log_level
                 raise exception_class(message) from e
         return wrapper
     return decorator
@@ -82,6 +93,7 @@ def log_and_ignore_error(
                 return func(*args, **kwargs)
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
+                _log_once(logger, log_level, error_message)  # Use log_level
                 _log_once(logger, log_level, error_message)  # Use log_level
                 return None
         return wrapper
@@ -103,6 +115,7 @@ def log_and_return_default(
                 return func(*args, **kwargs)
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
+                _log_once(logger, log_level, error_message)  # Use log_level
                 _log_once(logger, log_level, error_message)  # Use log_level
                 return default_value
         return wrapper
@@ -240,6 +253,14 @@ def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, han
         return wrapper
     return decorator
 
+# Fix trace_class to accept a logger and return a class decorator
+def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
+    def class_decorator(cls: Any) -> Any:
+        for attr_name, attr in cls.__dict__.items():
+            if callable(attr) and not attr_name.startswith("__"):
+                setattr(cls, attr_name, trace_method(logger)(attr))
+        return cls
+    return class_decorator
 # Fix trace_class to accept a logger and return a class decorator
 def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
     def class_decorator(cls: Any) -> Any:

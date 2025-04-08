@@ -6,7 +6,7 @@ import pytest
 
 from utils.decorators import (log_and_ignore_error, log_and_raise_error,
                               log_and_return_default, log_execution_time,
-                              retry_on_failure, trace_class, trace_method, _logged_exceptions)
+                              retry_on_failure, trace_class, trace_method, _log_once_tracker)
 
 # Mock logger for testing
 mock_logger = MagicMock()
@@ -15,7 +15,7 @@ mock_logger = MagicMock()
 def reset_mock_logger():
     """Reset the mock logger and clear logged exceptions before each test."""
     mock_logger.reset_mock()
-    _logged_exceptions.clear()
+    _log_once_tracker._logged_exceptions.clear()  # Clear the tracker state
 
 # ------------------------------
 # Helper Functions
@@ -41,7 +41,7 @@ class TestLogAndRaiseError:
 
         with pytest.raises(ValueError, match="Custom error message"):
             faulty_function()
-        mock_logger.error.assert_called_once()
+        mock_logger.log.assert_called_once_with(logging.ERROR, "Custom error message: [RuntimeError] Original error in faulty_function with args: (), kwargs: {}")
 
     def test_thread_safe(self):
         @log_and_raise_error("Custom error message", logger=mock_logger, exception_class=ValueError)
@@ -53,7 +53,7 @@ class TestLogAndRaiseError:
                 faulty_function()
 
         run_in_threads(thread_target)
-        assert mock_logger.error.call_count == 1  # Ensure the error is logged exactly once
+        mock_logger.log.assert_called_once()
 
 class TestLogAndIgnoreError:
     def test_basic(self):
@@ -62,7 +62,7 @@ class TestLogAndIgnoreError:
             raise RuntimeError("Original error")
 
         assert faulty_function() is None
-        mock_logger.error.assert_called_once()
+        mock_logger.log.assert_called_once_with(logging.ERROR, "Ignoring error: [RuntimeError] Original error in faulty_function with args: (), kwargs: {}")
 
     def test_thread_safe(self):
         @log_and_ignore_error("Ignoring error", logger=mock_logger)
@@ -70,7 +70,7 @@ class TestLogAndIgnoreError:
             raise RuntimeError("Original error")
 
         run_in_threads(lambda: faulty_function() is None)
-        assert mock_logger.error.call_count == 1
+        mock_logger.log.assert_called_once()
 
 class TestLogAndReturnDefault:
     def test_basic(self):
@@ -79,7 +79,7 @@ class TestLogAndReturnDefault:
             raise RuntimeError("Original error")
 
         assert faulty_function() == "default"
-        mock_logger.error.assert_called_once()
+        mock_logger.log.assert_called_once_with(logging.ERROR, "Returning default: [RuntimeError] Original error in faulty_function with args: (), kwargs: {}")
 
     def test_thread_safe(self):
         @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
@@ -91,7 +91,7 @@ class TestLogAndReturnDefault:
             assert result == "default"
 
         run_in_threads(thread_target)
-        assert mock_logger.error.call_count == 1
+        mock_logger.log.assert_called_once()
 
 # ------------------------------
 # Tests for Performance Decorators
