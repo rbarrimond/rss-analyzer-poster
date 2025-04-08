@@ -25,3 +25,4 @@ nltk>=3.8
 
 # Post processing
 markdown>=3.7
+html2text>=2024.2.26
