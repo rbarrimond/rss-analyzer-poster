@@ -21,8 +21,8 @@ Note:
 import functools
 import logging
 import time
-import traceback
 from typing import Any, Callable, Type
+import threading
 
 from utils.logger import LoggerFactory
 
@@ -30,6 +30,9 @@ from utils.logger import LoggerFactory
 # Add helper to check for dunder functions
 def _is_dunder(func: Callable[..., Any]) -> bool:
     return func.__name__.startswith("__") and func.__name__.endswith("__")
+
+# Thread-local storage for tracking logged exceptions
+_logged_exceptions = threading.local()
 
 # ------------------------------
 # Error Handling Decorators
@@ -79,24 +82,9 @@ def log_and_raise_error(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                # Extract the last frame of the traceback for the decorated function
-                tb = traceback.extract_tb(e.__traceback__)
-                if tb:
-                    last_frame = tb[-1]  # Get the last frame in the traceback
-                    file_name = last_frame.filename
-                    line_number = last_frame.lineno
-                    logger.error(
-                        "%s: [%s] %s occurred in %s (file: %s, line: %d) with args: %s, kwargs: %s",
-                        message,
-                        type(e).__name__,  # Exception class name
-                        e,  # Exception message
-                        func.__name__,  # Function name
-                        file_name,  # File where the exception occurred
-                        line_number,  # Line number where the exception occurred
-                        args,  # Positional arguments
-                        kwargs,  # Keyword arguments
-                    )
-                else:
+                if not hasattr(_logged_exceptions, "ids"):
+                    _logged_exceptions.ids = set()
+                if id(e) not in _logged_exceptions.ids:
                     logger.error(
                         "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
                         message,
@@ -106,6 +94,7 @@ def log_and_raise_error(
                         args,
                         kwargs,
                     )
+                    _logged_exceptions.ids.add(id(e))
                 raise exception_class(message) from e
         return wrapper
     return decorator
@@ -138,16 +127,19 @@ def log_and_ignore_error(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logger.error(
-                    "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
-                    message,
-                    type(e).__name__,
-                    e,
-                    func.__name__,
-                    args,
-                    kwargs,
-                )
-                # Error is ignored; default return is None.
+                if not hasattr(_logged_exceptions, "ids"):
+                    _logged_exceptions.ids = set()
+                if id(e) not in _logged_exceptions.ids:
+                    logger.error(
+                        "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
+                        message,
+                        type(e).__name__,
+                        e,
+                        func.__name__,
+                        args,
+                        kwargs,
+                    )
+                    _logged_exceptions.ids.add(id(e))
                 return None
         return wrapper
     return decorator
@@ -194,24 +186,9 @@ def log_and_return_default(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                # Extract the last frame of the traceback for the decorated function
-                tb = traceback.extract_tb(e.__traceback__)
-                if tb:
-                    last_frame = tb[-1]
-                    file_name = last_frame.filename
-                    line_number = last_frame.lineno
-                    logger.error(
-                        "%s: [%s] %s occurred in %s (file: %s, line: %d) with args: %s, kwargs: %s",
-                        message,
-                        type(e).__name__,
-                        e,
-                        func.__name__,
-                        file_name,
-                        line_number,
-                        args,
-                        kwargs,
-                    )
-                else:
+                if not hasattr(_logged_exceptions, "ids"):
+                    _logged_exceptions.ids = set()
+                if id(e) not in _logged_exceptions.ids:
                     logger.error(
                         "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
                         message,
@@ -221,6 +198,7 @@ def log_and_return_default(
                         args,
                         kwargs,
                     )
+                    _logged_exceptions.ids.add(id(e))
                 return default_value
         return wrapper
     return decorator

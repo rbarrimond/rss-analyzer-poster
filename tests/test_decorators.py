@@ -1,3 +1,4 @@
+import threading
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -37,6 +38,55 @@ def test_log_and_return_default():
         raise RuntimeError("Original error")
 
     assert faulty_function() == "default"  # Should return the default value
+    mock_logger.error.assert_called_once()
+
+def test_log_and_ignore_error_thread_safe():
+    @log_and_ignore_error("Ignoring error", logger=mock_logger)
+    def faulty_function():
+        raise RuntimeError("Original error")
+
+    def thread_target():
+        assert faulty_function() is None
+
+    threads = [threading.Thread(target=thread_target) for _ in range(5)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    mock_logger.error.assert_called_once()
+
+def test_log_and_raise_error_thread_safe():
+    @log_and_raise_error("Custom error message", logger=mock_logger, exception_class=ValueError)
+    def faulty_function():
+        raise RuntimeError("Original error")
+
+    def thread_target():
+        with pytest.raises(ValueError, match="Custom error message"):
+            faulty_function()
+
+    threads = [threading.Thread(target=thread_target) for _ in range(5)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    mock_logger.error.assert_called_once()
+
+def test_log_and_return_default_thread_safe():
+    @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
+    def faulty_function():
+        raise RuntimeError("Original error")
+
+    def thread_target():
+        assert faulty_function() == "default"
+
+    threads = [threading.Thread(target=thread_target) for _ in range(5)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
     mock_logger.error.assert_called_once()
 
 # ------------------------------
