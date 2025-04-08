@@ -253,16 +253,8 @@ def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, han
         return wrapper
     return decorator
 
-# Fix trace_class to accept a logger and return a class decorator
 def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
-    def class_decorator(cls: Any) -> Any:
-        for attr_name, attr in cls.__dict__.items():
-            if callable(attr) and not attr_name.startswith("__"):
-                setattr(cls, attr_name, trace_method(logger)(attr))
-        return cls
-    return class_decorator
-# Fix trace_class to accept a logger and return a class decorator
-def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
+    """Apply trace_method to all non-dunder methods of a class."""
     def class_decorator(cls: Any) -> Any:
         for attr_name, attr in cls.__dict__.items():
             if callable(attr) and not attr_name.startswith("__"):
