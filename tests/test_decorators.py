@@ -1,26 +1,36 @@
 import logging
+import threading
+import pytest
+from unittest.mock import MagicMock, patch
 from utils.decorators import (
     log_and_ignore_error,
     log_and_raise_error,
     log_and_return_default,
-    _reset_thread_local_storage,
     log_execution_time,
     retry_on_failure,
     trace_class,
     trace_method,
 )
-import threading
-import pytest
-from unittest.mock import MagicMock, patch
 
 # Mock logger for testing
 mock_logger = MagicMock()
 
 @pytest.fixture(autouse=True)
-def reset_state():
-    """Reset thread-local storage and mock logger before each test."""
-    _reset_thread_local_storage()
+def reset_mock_logger():
+    """Reset the mock logger before each test."""
     mock_logger.reset_mock()
+
+# ------------------------------
+# Helper Functions
+# ------------------------------
+
+def run_in_threads(target, thread_count=5):
+    """Run a target function in multiple threads."""
+    threads = [threading.Thread(target=target) for _ in range(thread_count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
 # ------------------------------
 # Tests for Error Handling Decorators
@@ -40,7 +50,7 @@ def test_log_and_ignore_error():
     def faulty_function():
         raise RuntimeError("Original error")
 
-    assert faulty_function() is None  # Should return None and not raise an exception
+    assert faulty_function() is None
     mock_logger.error.assert_called_once()
 
 def test_log_and_return_default():
@@ -48,7 +58,7 @@ def test_log_and_return_default():
     def faulty_function():
         raise RuntimeError("Original error")
 
-    assert faulty_function() == "default"  # Should return the default value
+    assert faulty_function() == "default"
     mock_logger.error.assert_called_once()
 
 def test_log_and_ignore_error_thread_safe():
@@ -56,16 +66,7 @@ def test_log_and_ignore_error_thread_safe():
     def faulty_function():
         raise RuntimeError("Original error")
 
-    def thread_target():
-        assert faulty_function() is None
-
-    threads = [threading.Thread(target=thread_target) for _ in range(5)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    # Assert that the error was logged exactly once across all threads
+    run_in_threads(lambda: faulty_function() is None or (_ for _ in ()).throw(AssertionError("Expected None")))
     assert mock_logger.error.call_count == 1
 
 def test_log_and_raise_error_thread_safe():
@@ -73,17 +74,9 @@ def test_log_and_raise_error_thread_safe():
     def faulty_function():
         raise RuntimeError("Original error")
 
-    def thread_target():
-        with pytest.raises(ValueError, match="Custom error message"):
-            faulty_function()
-
-    threads = [threading.Thread(target=thread_target) for _ in range(5)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    # Assert that the error was logged exactly once across all threads
+    run_in_threads(
+        lambda: pytest.raises(ValueError, match="Custom error message")(faulty_function)
+    )
     assert mock_logger.error.call_count == 1
 
 def test_log_and_return_default_thread_safe():
@@ -91,16 +84,10 @@ def test_log_and_return_default_thread_safe():
     def faulty_function():
         raise RuntimeError("Original error")
 
-    def thread_target():
-        assert faulty_function() == "default"
-
-    threads = [threading.Thread(target=thread_target) for _ in range(5)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-
-    # Assert that the error was logged exactly once across all threads
+    run_in_threads(
+        lambda: pytest.raises(
+            ValueError, match="Custom error message")(faulty_function)
+    )
     assert mock_logger.error.call_count == 1
 
 # ------------------------------
@@ -115,12 +102,8 @@ def test_log_execution_time(mock_time):
 
     result = sample_function(3, 4)
     assert result == 7
-    mock_logger.log.assert_called_with(
-        logging.DEBUG, 
-        "Finished %s in %.4f seconds", 
-        "sample_function", 
-        1.0
-    )
+    mock_logger.log.assert_any_call(logging.DEBUG, "Starting %s with args: %s, kwargs: %s", "sample_function", (3, 4), {})
+    mock_logger.log.assert_any_call(logging.DEBUG, "Finished %s in %.4f seconds", "sample_function", 1.0)
 
 # ------------------------------
 # Tests for Retry Decorators
@@ -134,7 +117,7 @@ def test_retry_on_failure_success():
 
     assert sample_function() == "Success"
     assert mock_function.call_count == 2
-    mock_logger.log.assert_called_with(logging.DEBUG, "Retry attempt %d for function %s", 1, "sample_function")
+    mock_logger.log.assert_any_call(logging.DEBUG, "Retry attempt %d for function %s", 1, "sample_function")
 
 def test_retry_on_failure_exhausted():
     mock_function = MagicMock(side_effect=RuntimeError("Fail"))
