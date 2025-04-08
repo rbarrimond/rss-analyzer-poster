@@ -51,7 +51,12 @@ def test_log_execution_time(mock_time):
 
     result = sample_function(3, 4)
     assert result == 7
-    mock_logger.log.assert_called_with(logging.DEBUG, "Finished sample_function in 1.0000 seconds")
+    mock_logger.log.assert_called_with(
+        logging.DEBUG, 
+        "Finished %s in %.4f seconds", 
+        "sample_function", 
+        1.0
+    )
 
 # ------------------------------
 # Tests for Retry Decorators
