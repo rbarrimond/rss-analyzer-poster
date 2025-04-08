@@ -65,7 +65,7 @@ def test_retry_on_failure_success():
 
     assert sample_function() == "Success"
     assert mock_function.call_count == 2
-    mock_logger.log.assert_called_with(logging.DEBUG, "Retry attempt 1 for function sample_function")
+    mock_logger.log.assert_called_with(logging.DEBUG, "Retry attempt %d for function %s", 1, "sample_function")
 
 def test_retry_on_failure_exhausted():
     mock_function = MagicMock(side_effect=RuntimeError("Fail"))
