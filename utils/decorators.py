@@ -34,6 +34,16 @@ def _is_dunder(func: Callable[..., Any]) -> bool:
 # Thread-local storage for tracking logged exceptions
 _logged_exceptions = threading.local()
 
+def _initialize_thread_local_storage():
+    """Initialize thread-local storage for logged exceptions."""
+    if not hasattr(_logged_exceptions, "ids"):
+        _logged_exceptions.ids = set()
+
+def _reset_thread_local_storage():
+    """Reset thread-local storage for testing purposes."""
+    if hasattr(_logged_exceptions, "ids"):
+        _logged_exceptions.ids.clear()
+
 # ------------------------------
 # Error Handling Decorators
 # ------------------------------
@@ -77,6 +87,7 @@ def log_and_raise_error(
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            _initialize_thread_local_storage()
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
@@ -122,6 +133,7 @@ def log_and_ignore_error(
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            _initialize_thread_local_storage()
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
@@ -181,6 +193,7 @@ def log_and_return_default(
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            _initialize_thread_local_storage()
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:

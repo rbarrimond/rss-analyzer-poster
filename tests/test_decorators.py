@@ -1,15 +1,26 @@
-import threading
 import logging
-from unittest.mock import MagicMock, patch
-
+from utils.decorators import (
+    log_and_ignore_error,
+    log_and_raise_error,
+    log_and_return_default,
+    _reset_thread_local_storage,
+    log_execution_time,
+    retry_on_failure,
+    trace_class,
+    trace_method,
+)
+import threading
 import pytest
-
-from utils.decorators import (log_and_ignore_error, log_and_raise_error,
-                              log_and_return_default, log_execution_time,
-                              retry_on_failure, trace_class, trace_method)
+from unittest.mock import MagicMock, patch
 
 # Mock logger for testing
 mock_logger = MagicMock()
+
+@pytest.fixture(autouse=True)
+def reset_state():
+    """Reset thread-local storage and mock logger before each test."""
+    _reset_thread_local_storage()
+    mock_logger.reset_mock()
 
 # ------------------------------
 # Tests for Error Handling Decorators
@@ -54,7 +65,8 @@ def test_log_and_ignore_error_thread_safe():
     for thread in threads:
         thread.join()
 
-    mock_logger.error.assert_called_once()
+    # Assert that the error was logged exactly once across all threads
+    assert mock_logger.error.call_count == 1
 
 def test_log_and_raise_error_thread_safe():
     @log_and_raise_error("Custom error message", logger=mock_logger, exception_class=ValueError)
@@ -71,7 +83,8 @@ def test_log_and_raise_error_thread_safe():
     for thread in threads:
         thread.join()
 
-    mock_logger.error.assert_called_once()
+    # Assert that the error was logged exactly once across all threads
+    assert mock_logger.error.call_count == 1
 
 def test_log_and_return_default_thread_safe():
     @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
@@ -87,7 +100,8 @@ def test_log_and_return_default_thread_safe():
     for thread in threads:
         thread.join()
 
-    mock_logger.error.assert_called_once()
+    # Assert that the error was logged exactly once across all threads
+    assert mock_logger.error.call_count == 1
 
 # ------------------------------
 # Tests for Performance Decorators
