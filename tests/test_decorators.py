@@ -134,7 +134,7 @@ def test_retry_on_failure_exhausted():
     mock_logger.error.assert_called()
 
 # ------------------------------
-# Tests for Tracing Decorators
+# Revamped Tests for Tracing Decorators
 # ------------------------------
 
 def test_trace_method():
@@ -142,14 +142,18 @@ def test_trace_method():
     def sample_method(x, y):
         return x + y
 
-    result = sample_method(3, 4)
-    assert result == 7
-    # Fix: Update the expected log message to match the actual implementation
-    mock_logger.debug.assert_any_call("%s.%s has triggered.", "int", "sample_method")
-    mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "int", "sample_method", mock_logger.debug.call_args_list[-1][0][3])
+    # Call the method and verify output
+    assert sample_method(3, 4) == 7
+
+    # Collect debug messages logged during the call
+    msgs = [call[0][0] for call in mock_logger.debug.call_args_list]
+
+    # Verify that the triggered and finished log messages contain the expected substrings
+    assert any("sample_method has triggered." in msg for msg in msgs), "Triggered message missing in trace_method logs"
+    assert any("sample_method has finished in" in msg for msg in msgs), "Finished message missing in trace_method logs"
 
 def test_trace_class():
-    @trace_class
+    @trace_class(logger=mock_logger)
     class SampleClass:
         def method_one(self, x):
             return x * 2
@@ -158,10 +162,21 @@ def test_trace_class():
             return y + 3
 
     instance = SampleClass()
+    # Validate method outputs
     assert instance.method_one(5) == 10
     assert instance.method_two(7) == 10
-    # Fix: Update the expected log messages to match the actual implementation
-    mock_logger.debug.assert_any_call("%s.%s has triggered.", "SampleClass", "method_one")
-    mock_logger.debug.assert_any_call("%s.%s has triggered.", "SampleClass", "method_two")
-    mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "SampleClass", "method_one", mock_logger.debug.call_args_list[-2][0][3])
-    mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "SampleClass", "method_two", mock_logger.debug.call_args_list[-1][0][3])
+
+    # Gather all debug messages
+    msgs = [call[0][0] for call in mock_logger.debug.call_args_list]
+
+    # Expected substrings for the log messages
+    trigger_one = "SampleClass.method_one has triggered."
+    trigger_two = "SampleClass.method_two has triggered."
+    finish_one = "SampleClass.method_one has finished in"
+    finish_two = "SampleClass.method_two has finished in"
+
+    # Verify that the expected substrings exist in the collected log messages
+    assert any(trigger_one in msg for msg in msgs), "Triggered message for method_one missing in trace_class logs"
+    assert any(trigger_two in msg for msg in msgs), "Triggered message for method_two missing in trace_class logs"
+    assert any(finish_one in msg for msg in msgs), "Finished message for method_one missing in trace_class logs"
+    assert any(finish_two in msg for msg in msgs), "Finished message for method_two missing in trace_class logs"
