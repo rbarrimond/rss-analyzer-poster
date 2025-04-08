@@ -129,18 +129,6 @@ def log_and_ignore_error(
 
     Note:
         Dunder functions bypass logging and exception handling.
-
-    Example:
-        @log_and_ignore_error("Skipped error in process")
-        def process_data(data):
-            # Process data that might raise an exception.
-            pass
-
-        # Dunder usage:
-        class MyClass:
-            @log_and_ignore_error("Should not log in dunder")
-            def __str__(self):
-                return "MyClass"
     """
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
@@ -150,34 +138,17 @@ def log_and_ignore_error(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                # Extract the last frame of the traceback for the decorated function
-                tb = traceback.extract_tb(e.__traceback__)
-                if tb:
-                    last_frame = tb[-1]
-                    file_name = last_frame.filename
-                    line_number = last_frame.lineno
-                    logger.error(
-                        "%s: [%s] %s occurred in %s (file: %s, line: %d) with args: %s, kwargs: %s",
-                        message,
-                        type(e).__name__,
-                        e,
-                        func.__name__,
-                        file_name,
-                        line_number,
-                        args,
-                        kwargs,
-                    )
-                else:
-                    logger.error(
-                        "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
-                        message,
-                        type(e).__name__,
-                        e,
-                        func.__name__,
-                        args,
-                        kwargs,
-                    )
+                logger.error(
+                    "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
+                    message,
+                    type(e).__name__,
+                    e,
+                    func.__name__,
+                    args,
+                    kwargs,
+                )
                 # Error is ignored; default return is None.
+                return None
         return wrapper
     return decorator
 
