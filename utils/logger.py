@@ -4,32 +4,14 @@ Updated logging configuration utility module.
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-
-def str_to_bool(val: str) -> bool:
-    """
-    Convert a string to a boolean, or return the boolean if already provided.
-    
-    Accepts string values: 'true', 't', 'yes', '1' → True; 
-    'false', 'f', 'no', '0' → False.
-    Raises:
-         ValueError if the value cannot be interpreted.
-    """
-    if isinstance(val, bool):
-        return val
-    val = val.strip().lower()
-    if val in ("true", "t", "yes", "1"):
-        return True
-    elif val in ("false", "f", "no", "0"):
-        return False
-    else:
-        raise ValueError(f"Invalid boolean value: {val}")
+from utils.helper import str_to_bool
 
 class LoggerFactory:
     """Factory for creating and configuring loggers with standardized handlers."""
 
     @staticmethod
     def get_logger(module_name: str, handler_level: int | str = os.getenv('LOG_LEVEL', 'INFO'),
-                   log_to_file: bool | str = os.getenv("LOG_TO_FILE"), 
+                   log_to_file: bool | str = os.getenv("LOG_TO_FILE", "false"), 
                    file_name: str = os.getenv("LOG_FILE_NAME")) -> logging.Logger:
         """
         Initialize and configure a logger for a specified module.
