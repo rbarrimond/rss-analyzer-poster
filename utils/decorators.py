@@ -139,8 +139,6 @@ def log_and_ignore_error(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                if not hasattr(_logged_exceptions, "ids"):
-                    _logged_exceptions.ids = set()
                 if id(e) not in _logged_exceptions.ids:
                     logger.error(
                         "%s: [%s] %s occurred in %s with args: %s, kwargs: %s",
