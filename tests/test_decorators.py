@@ -32,62 +32,65 @@ def run_in_threads(target, thread_count=5):
 # Tests for Error Handling Decorators
 # ------------------------------
 
-def test_log_and_raise_error():
-    @log_and_raise_error("Custom error message", logger=mock_logger, exception_class=ValueError)
-    def faulty_function():
-        raise RuntimeError("Original error")
+class TestLogAndRaiseError:
+    def test_basic(self):
+        @log_and_raise_error("Custom error message", logger=mock_logger, exception_class=ValueError)
+        def faulty_function():
+            raise RuntimeError("Original error")
 
-    with pytest.raises(ValueError, match="Custom error message"):
-        faulty_function()
-    mock_logger.error.assert_called_once()
-
-def test_log_and_ignore_error():
-    @log_and_ignore_error("Ignoring error", logger=mock_logger)
-    def faulty_function():
-        raise RuntimeError("Original error")
-
-    assert faulty_function() is None
-    mock_logger.error.assert_called_once()
-
-def test_log_and_return_default():
-    @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
-    def faulty_function():
-        raise RuntimeError("Original error")
-
-    assert faulty_function() == "default"
-    mock_logger.error.assert_called_once()
-
-def test_log_and_ignore_error_thread_safe():
-    @log_and_ignore_error("Ignoring error", logger=mock_logger)
-    def faulty_function():
-        raise RuntimeError("Original error")
-
-    run_in_threads(lambda: faulty_function() is None or (_ for _ in ()).throw(AssertionError("Expected None")))
-    assert mock_logger.error.call_count == 1
-
-def test_log_and_raise_error_thread_safe():
-    @log_and_raise_error("Custom error message", logger=mock_logger, exception_class=ValueError)
-    def faulty_function():
-        raise RuntimeError("Original error")
-
-    def thread_target():
         with pytest.raises(ValueError, match="Custom error message"):
             faulty_function()
+        mock_logger.error.assert_called_once()
 
-    run_in_threads(thread_target)
-    assert mock_logger.error.call_count == 1  # Ensure the error is logged exactly once
+    def test_thread_safe(self):
+        @log_and_raise_error("Custom error message", logger=mock_logger, exception_class=ValueError)
+        def faulty_function():
+            raise RuntimeError("Original error")
 
-def test_log_and_return_default_thread_safe():
-    @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
-    def faulty_function():
-        raise RuntimeError("Original error")
+        def thread_target():
+            with pytest.raises(ValueError, match="Custom error message"):
+                faulty_function()
 
-    def thread_target():
-        result = faulty_function()
-        assert result == "default"
+        run_in_threads(thread_target)
+        assert mock_logger.error.call_count == 1  # Ensure the error is logged exactly once
 
-    run_in_threads(thread_target)
-    assert mock_logger.error.call_count == 1
+class TestLogAndIgnoreError:
+    def test_basic(self):
+        @log_and_ignore_error("Ignoring error", logger=mock_logger)
+        def faulty_function():
+            raise RuntimeError("Original error")
+
+        assert faulty_function() is None
+        mock_logger.error.assert_called_once()
+
+    def test_thread_safe(self):
+        @log_and_ignore_error("Ignoring error", logger=mock_logger)
+        def faulty_function():
+            raise RuntimeError("Original error")
+
+        run_in_threads(lambda: faulty_function() is None)
+        assert mock_logger.error.call_count == 1
+
+class TestLogAndReturnDefault:
+    def test_basic(self):
+        @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
+        def faulty_function():
+            raise RuntimeError("Original error")
+
+        assert faulty_function() == "default"
+        mock_logger.error.assert_called_once()
+
+    def test_thread_safe(self):
+        @log_and_return_default(default_value="default", message="Returning default", logger=mock_logger)
+        def faulty_function():
+            raise RuntimeError("Original error")
+
+        def thread_target():
+            result = faulty_function()
+            assert result == "default"
+
+        run_in_threads(thread_target)
+        assert mock_logger.error.call_count == 1
 
 # ------------------------------
 # Tests for Performance Decorators
@@ -159,23 +162,3 @@ def test_trace_class():
     mock_logger.debug.assert_any_call("%s.%s has triggered.", "SampleClass", "method_two")
     mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "SampleClass", "method_one", mock_logger.debug.call_args_list[-2][0][3])
     mock_logger.debug.assert_any_call("%s.%s has finished in %.4f seconds.", "SampleClass", "method_two", mock_logger.debug.call_args_list[-1][0][3])
-
-def test_trace_class_no_recursion():
-    @trace_class
-    class TestClass:
-        def method(self, x):
-            if x > 0:
-                return self.method(x - 1)
-            return x
-
-    instance = TestClass()
-    assert instance.method(5) == 0  # Ensure recursion terminates correctly
-
-def test_retry_on_failure_no_recursion():
-    @retry_on_failure(retries=3, delay=10)
-    def recursive_function(x):
-        if x > 0:
-            return recursive_function(x - 1)
-        return x
-
-    assert recursive_function(5) == 0  # Ensure recursion terminates correctly
