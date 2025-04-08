@@ -242,13 +242,12 @@ def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, han
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if _is_dunder(func):
                 return func(*args, **kwargs)
-            class_name = args[0].__class__.__name__ if args else ''
             method_name = func.__name__
-            logger.debug("%s.%s has triggered.", class_name, method_name)
+            logger.debug(f"{method_name} has triggered.")
             start = time.perf_counter()
             result = func(*args, **kwargs)
             duration = time.perf_counter() - start
-            logger.debug("%s.%s has finished in %.4f seconds.", class_name, method_name, duration)
+            logger.debug(f"{method_name} has finished in {duration:.4f} seconds.")
             return result
         return wrapper
     return decorator
@@ -258,6 +257,7 @@ def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, hand
     def class_decorator(cls: Any) -> Any:
         for attr_name, attr in cls.__dict__.items():
             if callable(attr) and not attr_name.startswith("__"):
+                # Wrap the method with trace_method
                 setattr(cls, attr_name, trace_method(logger)(attr))
         return cls
     return class_decorator

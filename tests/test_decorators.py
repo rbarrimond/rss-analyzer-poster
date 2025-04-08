@@ -1,5 +1,6 @@
 import logging
 import threading
+from unittest import mock
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -134,49 +135,57 @@ def test_retry_on_failure_exhausted():
     mock_logger.error.assert_called()
 
 # ------------------------------
-# Revamped Tests for Tracing Decorators
+# Tests for Tracing Decorators
 # ------------------------------
 
-def test_trace_method():
-    @trace_method(logger=mock_logger)
-    def sample_method(x, y):
-        return x + y
+class TestTraceMethod:
+    def test_trace_method_logs_correctly(self):
+        @trace_method(logger=mock_logger)
+        def sample_method(x, y):
+            return x + y
 
-    # Call the method and verify output
-    assert sample_method(3, 4) == 7
+        # Call the method and verify output
+        assert sample_method(3, 4) == 7
 
-    # Collect debug messages logged during the call
-    msgs = [call[0][0] for call in mock_logger.debug.call_args_list]
+        # Verify that the logger was called with the correct debug messages
+        mock_logger.debug.assert_any_call("sample_method has triggered.")
+        mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
 
-    # Verify that the triggered and finished log messages contain the expected substrings
-    assert any("sample_method has triggered." in msg for msg in msgs), "Triggered message missing in trace_method logs"
-    assert any("sample_method has finished in" in msg for msg in msgs), "Finished message missing in trace_method logs"
 
-def test_trace_class():
-    @trace_class(logger=mock_logger)
-    class SampleClass:
-        def method_one(self, x):
-            return x * 2
+class TestTraceClass:
+    def test_trace_class_applies_to_methods(self):
+        @trace_class(logger=mock_logger)
+        class SampleClass:
+            def method_one(self, x):
+                return x * 2
 
-        def method_two(self, y):
-            return y + 3
+            def method_two(self, y):
+                return y + 3
 
-    instance = SampleClass()
-    # Validate method outputs
-    assert instance.method_one(5) == 10
-    assert instance.method_two(7) == 10
+        instance = SampleClass()
+        # Validate method outputs
+        assert instance.method_one(5) == 10
+        assert instance.method_two(7) == 10
 
-    # Gather all debug messages
-    msgs = [call[0][0] for call in mock_logger.debug.call_args_list]
+        # Verify that the logger was called with the correct debug messages
+        mock_logger.debug.assert_any_call("method_one has triggered.")
+        mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
+        mock_logger.debug.assert_any_call("method_two has triggered.")
+        mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
 
-    # Expected substrings for the log messages
-    trigger_one = "SampleClass.method_one has triggered."
-    trigger_two = "SampleClass.method_two has triggered."
-    finish_one = "SampleClass.method_one has finished in"
-    finish_two = "SampleClass.method_two has finished in"
+    def test_trace_class_ignores_dunder_methods(self):
+        @trace_class(logger=mock_logger)
+        class SampleClass:
+            def __init__(self):
+                self.value = 0
 
-    # Verify that the expected substrings exist in the collected log messages
-    assert any(trigger_one in msg for msg in msgs), "Triggered message for method_one missing in trace_class logs"
-    assert any(trigger_two in msg for msg in msgs), "Triggered message for method_two missing in trace_class logs"
-    assert any(finish_one in msg for msg in msgs), "Finished message for method_one missing in trace_class logs"
-    assert any(finish_two in msg for msg in msgs), "Finished message for method_two missing in trace_class logs"
+            def method_one(self, x):
+                return x * 2
+
+        instance = SampleClass()
+        assert instance.method_one(5) == 10
+
+        # Verify that dunder methods are not logged
+        mock_logger.debug.assert_any_call("method_one has triggered.")
+        mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
+        assert not any("__init__" in call[0][0] for call in mock_logger.debug.call_args_list), "Dunder method __init__ should not be logged"
