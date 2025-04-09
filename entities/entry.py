@@ -18,7 +18,7 @@ import numpy as np
 import requests
 import xxhash
 from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
-                      field_validator, field_serializer)
+                      field_validator, field_serializer, PrivateAttr)
 
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure
@@ -125,6 +125,9 @@ class Entry(BaseModel):
         alias="Source",
         description="Source of the entry."
         )
+
+    # Add a private thread lock attribute
+    _http_fetch_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     @field_validator("summary", mode="before")
     @classmethod
@@ -284,8 +287,6 @@ class Entry(BaseModel):
             blob_name=blob_path,
         )
 
-    _http_fetch_lock = threading.Lock()
-
     @log_execution_time()
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
     def _fetch_content_from_http(self) -> Optional[str]:
@@ -297,7 +298,7 @@ class Entry(BaseModel):
 
         This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
         """
-        with self._http_fetch_lock:
+        with self._http_fetch_lock:  # Use the private thread lock
             logger.debug("Retrieving content from HTTP link: %s", self.link)
 
             response = requests.get(self.link, timeout=10)
@@ -427,23 +428,24 @@ class AIEnrichment(BaseModel):
         Returns:
             Optional[np.ndarray]: The embeddings numpy array, or None if not available.
         """
-        return self._get_embeddings_blob
+        return self._fetch_embeddings_from_blob
 
     @log_and_raise_error("Failed to save AI enrichment")
-    def save(self, embeddings: np.ndarray = None) -> None:
+    def save(self, save_embeddings: np.ndarray = None) -> None:
         """
         Save the current AIEnrichment instance to Azure Table Storage.
 
         If embeddings are provided, they are persisted to Azure Blob Storage.
         """
-        if not embeddings:
-            self._persist_embeddings(self.embeddings)
-        else:
-            self._persist_embeddings(embeddings)
+        embeddings = save_embeddings or self.embeddings
+        if embeddings is None:
+            raise ValueError("Embeddings are not available.")
+
+        self._save_embeddings_to_blob(embeddings)
         acf.get_instance().table_upsert_entity(table_name=RSS_ENTRY_TABLE_NAME,
                                                 entity=self.model_dump(mode="json", by_alias=True))
         logger.debug("AI enrichment %s/%s saved.", self.partition_key, self.row_key)
-    
+
     @log_and_raise_error("Failed to delete AI enrichment")
     def delete(self) -> None:
         """
@@ -456,9 +458,9 @@ class AIEnrichment(BaseModel):
         acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
                                         blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy")
         logger.debug("AI enrichment %s/%s deleted.", self.partition_key, self.row_key)
-    
+
     @log_and_return_default(default_value=None, message="Failed to retrieve embeddings blob")
-    def _get_embeddings_blob(self) -> Optional[np.ndarray]:
+    def _fetch_embeddings_from_blob(self) -> Optional[np.ndarray]:
         """
         Retrieve and load the embeddings numpy array from Azure Blob Storage.
 
@@ -476,7 +478,7 @@ class AIEnrichment(BaseModel):
 
     @log_and_raise_error("Failed to persist embeddings")
     @retry_on_failure(retries=1, delay=2000)
-    def _persist_embeddings(self, embeddings: np.ndarray) -> None:
+    def _save_embeddings_to_blob(self, embeddings: np.ndarray) -> None:
         """
         Persist the embeddings numpy array to Azure Blob Storage.
 
