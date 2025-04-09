@@ -121,25 +121,25 @@ def ingest_queued_feed(msg: QueueMessage) -> None:
     Returns:
         None
     """
-    logger.info("ingestQueuedFeed triggered by message ID %s.", msg.id)
+    logger.info("Feed ingestion triggered by message ID %s.", msg.id)
     
     payload = _extract_json_from_queue_msg(msg)
     feed_url = payload.get("feed", {}).get("url")
     payload_status = payload.get("envelope", {}).get("status") == "enqueued"
 
-    if any(not payload_status, not payload, not feed_url):
+    if any([not payload_status, not payload, not feed_url]):
         if not payload_status:
             logger.warning("Invalid message payload status. msg ID %s", msg.id)
         if not payload:
             logger.warning("Invalid message payload. msg ID %s", msg.id)
         if not feed_url:
-            logger.warning("Invalid feed URL in message payload. msg=%s", msg.id)
+            logger.warning("Missing feed URL in message payload. msg=%s", msg.id)
     else:
         feed_name = payload.get("feed", {}).get("name")
         if RssIngestionService().ingest_feed(feed_url):
-            logger.info("Feed %s ingested successfully.", feed_name)
+            logger.info("Feed %s ingestion succeded.", feed_name)
         else:
-            logger.warning("Failed to ingest feed %s.", feed_name)
+            logger.warning("Feed %s ingestion failed.", feed_name)
     
     logger.debug("Deleting message from queue.\n%s", msg)
     msg.delete()
