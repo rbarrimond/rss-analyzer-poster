@@ -141,9 +141,6 @@ def ingest_queued_feed(msg: QueueMessage) -> None:
         else:
             logger.warning("Feed %s ingestion failed.", feed_name)
     
-    logger.debug("Deleting message from queue.\n%s", msg)
-    msg.delete()
-
 
 
 @log_and_return_default(default_value={}, message="Failed to extract JSON from request.")

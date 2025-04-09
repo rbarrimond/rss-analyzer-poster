@@ -41,6 +41,7 @@ from O365 import Account
 from utils.decorators import (log_and_raise_error, log_and_return_default, log_execution_time,
                               trace_class)
 from utils.logger import LoggerFactory
+from functools import lru_cache
 
 logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
@@ -180,6 +181,7 @@ class AzureClientFactory:
         return self._openai_clients
 
     @log_and_return_default(default_value=None, message="Blob download failed")
+    @lru_cache(maxsize=100)  # Cache results for up to 100 blobs
     def download_blob_content(self, container_name: str, blob_name: str) -> bytes | str | None:
         """
         Downloads the content of a blob from Azure Blob Storage.
@@ -191,12 +193,12 @@ class AzureClientFactory:
         """
         if not all([container_name, blob_name]):
             raise ValueError(f"Container ({container_name}) or blob ({blob_name}) is missing.")
-        
+
         if blob_name in self.blob_service_client.get_container_client(container_name).list_blob_names():
             blob_client = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name)
             blob_properties = blob_client.get_blob_properties()
             content_type = blob_properties['content_settings']['content_type']
-        
+
             content = blob_client.download_blob().readall()
             logger.debug("Blob downloaded %d bytes successfully: container=%s, blob=%s", len(content), container_name, blob_name)
 

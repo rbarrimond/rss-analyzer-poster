@@ -32,6 +32,9 @@ RSS_ENTRY_TABLE_NAME = os.getenv("RSS_ENTRIES_TABLE_NAME")
 
 logger = LoggerFactory.get_logger(__name__)
 
+# Define a module-level constant for the sentinel value
+NULL_CONTENT = "\ue000"  # Unicode private use character for missing content
+
 class Entry(BaseModel):
     """Represents an RSS entry entity.
 
@@ -172,7 +175,7 @@ class Entry(BaseModel):
         """
         return xxhash.xxh64(self.id).hexdigest()
 
-    @computed_field(alias="Content", description="Cached content of the entry.")    
+    @computed_field(alias="Content", description="Cached content of the entry.")  
     @cached_property
     def content(self) -> Optional[str]:
         """
@@ -181,9 +184,23 @@ class Entry(BaseModel):
         If the content is not already cached, it attempts to fetch it from Azure Blob Storage or via HTTP.
 
         Returns:
-            Optional[str]: The content of the entry, or None if not available.
+            Optional[str]: The content of the entry, or NULL_CONTENT if not available.
         """
-        return self._get_content_blob() or self._get_content_http()
+        content = self._get_content_blob()
+
+        if not content:
+            logger.warning("Content not available in blob storage. Attempting to retrieve from HTTP.")
+            content = self._get_content_http()
+        
+        if not content:
+            logger.warning("Content not available in blob storage or HTTP.")
+            logger.debug("Content not available for entry %s/%s.", self.partition_key, self.row_key)
+            return NULL_CONTENT  # Use the descriptive constant
+        
+        logger.debug("Content retrieved for entry %s/%s_content.md  (%s...%s).",
+                     self.partition_key, self.row_key,
+                     content[:10], content[-10:])
+        return content
 
     @field_serializer("content", mode="wrap")
     def serialize_content(self, field, value, info):
