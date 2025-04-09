@@ -15,8 +15,8 @@ class ConfigLoader:
     
     The JSON file should have top-level keys corresponding to target class names.
     
-    Public Methods:
-      - get_config(target_class: str) -> dict: Retrieves the configuration for the given target class.
+    Public Properties:
+      - config: Retrieves the entire configuration dictionary.
     """
     _instance = None
 
@@ -31,29 +31,33 @@ class ConfigLoader:
                  blob_name: str = os.environ.get("CONFIG_BLOB_NAME", "config.json")):
         """Initialize the ConfigLoader by loading JSON configuration from Azure blob storage."""
         # Avoid reloading if already initialized
-        if hasattr(self, 'config_data'):
+        if hasattr(self, '_config'):
             return  # already loaded
 
-        self.config_data = json.loads(acf.get_instance().download_blob_content(container_name, blob_name))
+        try:
+            # Load configuration from Azure Blob storage
+            self._config = json.loads(acf.get_instance().download_blob_content(container_name, blob_name))
+        except Exception as e:
+            # Raise an AttributeError if the blob fails to load
+            raise AttributeError(f"Failed to load configuration from blob '{blob_name}' in container '{container_name}': {e}") from e
 
     @property
     def config(self) -> dict:
-        """Return the full configuration as a dictionary."""
-        return self.config_data
+        """Retrieve the entire configuration dictionary."""
+        return self._config
 
-    def __getattr__(self, name: str) -> dict:
-        """Provide attribute-like access to target class configurations.
-        
+    def get_config(self, target_class: str) -> dict:
+        """Retrieve the configuration for the given target class.
+
+        Args:
+            target_class (str): The name of the target class.
+
         Returns:
             dict: The configuration for the target class if available.
-            
+
         Raises:
-            AttributeError: If the configuration for the target class is not found.
+            KeyError: If the configuration for the target class is not found.
         """
-        try:
-            config_data = object.__getattribute__(self, "config_data")
-        except AttributeError as e:
-            raise AttributeError("'ConfigLoader' object has no attribute 'config_data'") from e
-        if name in config_data:
-            return config_data[name]
-        raise AttributeError(f"'ConfigLoader' object has no attribute '{name}'")
+        if target_class in self._config:
+            return self._config[target_class]
+        raise KeyError(f"Configuration for '{target_class}' not found.")

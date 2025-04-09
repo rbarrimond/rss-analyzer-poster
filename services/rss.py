@@ -20,8 +20,7 @@ from entities.feed import Feed
 from utils.azclients import AzureClientFactory as acf
 from utils.config import ConfigLoader
 from utils.decorators import (log_and_raise_error, log_and_return_default,
-                              log_execution_time, retry_on_failure,
-                              trace_class)
+                              retry_on_failure)
 from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -56,9 +55,9 @@ class RssIngestionService:
         Raises:
             ValueError: When mandatory configuration values (feeds or queue settings) are absent.
         """
-        config: dict = ConfigLoader().RssIngestionService
-        self.feeds: list = config.get('feeds', [])
-        self.last_ingestion: datetime = config.get('last_ingestion', EPOCH_RFC1123)
+        self.config: dict = ConfigLoader().config["RssIngestionService"]
+        self.feeds: list = self.config.get('feeds', [])
+        self.last_ingestion: datetime = self.config.get('last_ingestion', EPOCH_RFC1123)
 
         if not self.feeds:
             logger.debug("Missing configuration values: feeds=%s", self.feeds)
@@ -91,9 +90,9 @@ class RssIngestionService:
 
         # Update the last_run timestamp and persist it via the ConfigLoader singleton to maintain state
         # across service instantiations.
-        ConfigLoader().RssIngestionService['last_ingestion'] = datetime.now(timezone.utc)
+        self.config['last_ingestion'] = datetime.now(timezone.utc)
         logger.info("RSS Ingestion Service enqueued feeds successfully. Last run updated to: %s",
-                    ConfigLoader().RssIngestionService['last_ingestion'])
+                    self.config["RssIngestionService"]['last_ingestion'])
         
 
     @log_and_return_default(False, message="Failed to check feed for update")
