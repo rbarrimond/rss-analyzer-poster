@@ -10,6 +10,7 @@ embeddings.
 from functools import cached_property
 import io
 import os
+import threading
 from datetime import datetime
 from typing import Any, Literal, Optional, Set
 
@@ -232,7 +233,7 @@ class Entry(BaseModel):
         return parse_date(v)
 
     @log_and_raise_error("Failed to save entry")
-    def save(self, content: Optional[str] = None) -> None:
+    def save(self, save_content: Optional[str] = None) -> None:
         """
         Save or update the Entry instance in Azure Table Storage.
 
@@ -242,7 +243,7 @@ class Entry(BaseModel):
             content (Optional[str]): The content to persist. If not provided, defaults to self.content.
         """
         # Fetch content only once to avoid recursion
-        content = content or self.content
+        content = save_content or self.content
 
         if not content or content == NULL_CONTENT:
             raise ValueError("Content is not available.")
@@ -283,6 +284,8 @@ class Entry(BaseModel):
             blob_name=blob_path,
         )
 
+    _http_fetch_lock = threading.Lock()
+
     @log_execution_time()
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
     def _fetch_content_from_http(self) -> Optional[str]:
@@ -292,22 +295,22 @@ class Entry(BaseModel):
         Attempts to download the entry content with a timeout. If the response status is 200, returns the text;
         otherwise, raises an HTTP error.
 
-        Returns:
-            Optional[str]: The content of the entry, or None if the HTTP request fails.
+        This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
         """
-        logger.debug("Retrieving content from HTTP link: %s", self.link)
+        with self._http_fetch_lock:
+            logger.debug("Retrieving content from HTTP link: %s", self.link)
 
-        response = requests.get(self.link, timeout=10)
-        if response.status_code == 200:
-            logger.debug("Content retrieved successfully from HTTP link.")
-            norm_html = normalize_html(response.text)
-            markdown = html_to_markdown(norm_html)
-            logger.debug("Content converted to markdown. Length %d characters.", len(markdown))
-            return markdown
-        else:
-            logger.warning("Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
-            logger.debug("Response content: %s", response.text)
-            response.raise_for_status()
+            response = requests.get(self.link, timeout=10)
+            if response.status_code == 200:
+                logger.debug("Content retrieved successfully from HTTP link.")
+                norm_html = normalize_html(response.text)
+                markdown = html_to_markdown(norm_html)
+                logger.debug("Content converted to markdown. Length %d characters.", len(markdown))
+                return markdown
+            else:
+                logger.warning("Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
+                logger.debug("Response content: %s", response.text)
+                response.raise_for_status()
 
     @log_and_raise_error("Failed to persist content")
     @retry_on_failure(retries=1, delay=2000)
