@@ -44,7 +44,6 @@ from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
 
-@trace_class
 class AzureClientFactory:
     """
     Singleton class for creating and managing Azure service clients.

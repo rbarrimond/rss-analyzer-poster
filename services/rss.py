@@ -30,7 +30,7 @@ logger = LoggerFactory.get_logger(__name__)
 # This is the Unix epoch time (1970-01-01T00:00:00Z) used as a fallback for last ingestion.
 EPOCH_RFC1123 = datetime(1970, 1, 1)
 
-@trace_class
+# @trace_class
 class RssIngestionService:
     """
     The RssIngestionService class is responsible for managing RSS feed processing.

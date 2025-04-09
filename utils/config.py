@@ -3,9 +3,7 @@
 import os
 import json
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import trace_class
 
-@trace_class
 class ConfigLoader:
     """
     Singleton class that loads and provides access to application configuration from an Azure Blob.

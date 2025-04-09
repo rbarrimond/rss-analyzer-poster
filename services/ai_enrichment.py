@@ -40,7 +40,6 @@ from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
 
-@trace_class
 class AIEnrichmentService:
     """
     Service for AI-driven enrichment of RSS feed data.
