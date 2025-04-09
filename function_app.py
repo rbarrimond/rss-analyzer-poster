@@ -97,7 +97,7 @@ def update_log_level(req: HttpRequest) -> HttpResponse:
     Returns:
         HttpResponse: JSON response confirming the update or detailing an error.
     """
-    logger.info('Update Log Level HTTP triggered.')
+    logger.info('updateLogLevel HTTP triggered.')
 
     new_level = _extract_json_from_request_body(req).get('log_level')
     if not new_level:
@@ -121,23 +121,30 @@ def ingest_queued_feed(msg: QueueMessage) -> None:
     Returns:
         None
     """
-    logger.info("Ingest Queued Feed received a message.")
+    logger.info("ingestQueuedFeed triggered by message ID %s.", msg.id)
     
     payload = _extract_json_from_queue_msg(msg)
-    if not payload:
-        logger.error("Empty message payload received. msg=%s", msg)
-        return
-    logger.debug("Ingest Queued Feed payload: %s", payload)
-
     feed_url = payload.get("feed", {}).get("url")
-    if not feed_url:
-        logger.error("Missing feed url in message payload.")
-        return
+    payload_status = payload.get("envelope", {}).get("status") == "enqueued"
+
+    if any(not payload_status, not payload, not feed_url):
+        if not payload_status:
+            logger.warning("Invalid message payload status. msg ID %s", msg.id)
+        if not payload:
+            logger.warning("Invalid message payload. msg ID %s", msg.id)
+        if not feed_url:
+            logger.warning("Invalid feed URL in message payload. msg=%s", msg.id)
+    else:
+        feed_name = payload.get("feed", {}).get("name")
+        if RssIngestionService().ingest_feed(feed_url):
+            logger.info("Feed %s ingested successfully.", feed_name)
+        else:
+            logger.warning("Failed to ingest feed %s.", feed_name)
     
-    RssIngestionService().ingest_feed(feed_url)
-    feed_name = payload.get("feed", {}).get("name")
-    logger.info("Feed ingestion completed for: %s at %s", feed_name, feed_url)
-        
+    logger.debug("Deleting message from queue.\n%s", msg)
+    msg.delete()
+
+
 
 @log_and_return_default(default_value={}, message="Failed to extract JSON from request.")
 def _extract_json_from_request_body(req: HttpRequest) -> dict:
