@@ -168,10 +168,10 @@ class TestTraceClass:
         assert instance.method_two(7) == 10
 
         # Verify that the logger was called with the correct debug messages
-        mock_logger.debug.assert_any_call("method_one has triggered.")
-        mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
-        mock_logger.debug.assert_any_call("method_two has triggered.")
-        mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
+        mock_logger.debug.assert_any_call("Entering SampleClass.method_one with args: (<SampleClass object>, 5), kwargs: {}")
+        mock_logger.debug.assert_any_call("Exiting SampleClass.method_one with result: 10")
+        mock_logger.debug.assert_any_call("Entering SampleClass.method_two with args: (<SampleClass object>, 7), kwargs: {}")
+        mock_logger.debug.assert_any_call("Exiting SampleClass.method_two with result: 10")
 
     def test_trace_class_ignores_dunder_methods(self):
         @trace_class(logger=mock_logger)
@@ -186,6 +186,6 @@ class TestTraceClass:
         assert instance.method_one(5) == 10
 
         # Verify that dunder methods are not logged
-        mock_logger.debug.assert_any_call("method_one has triggered.")
-        mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
+        mock_logger.debug.assert_any_call("Entering SampleClass.method_one with args: (<SampleClass object>, 5), kwargs: {}")
+        mock_logger.debug.assert_any_call("Exiting SampleClass.method_one with result: 10")
         assert not any("__init__" in call[0][0] for call in mock_logger.debug.call_args_list), "Dunder method __init__ should not be logged"

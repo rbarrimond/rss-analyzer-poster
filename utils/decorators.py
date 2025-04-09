@@ -257,8 +257,15 @@ def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, hand
     def decorator(cls: Any) -> Any:
         for attr_name, attr in cls.__dict__.items():
             if callable(attr) and not attr_name.startswith("__"):
-                # Wrap the method with trace_method
-                setattr(cls, attr_name, trace_method(logger)(attr))
+                # Wrap the method with trace_method, preserving existing decorators
+                original_method = attr
+                @functools.wraps(original_method)
+                def wrapped_method(*args, **kwargs):
+                    logger.debug(f"Entering {cls.__name__}.{attr_name} with args: {args}, kwargs: {kwargs}")
+                    result = original_method(*args, **kwargs)
+                    logger.debug(f"Exiting {cls.__name__}.{attr_name} with result: {result}")
+                    return result
+                setattr(cls, attr_name, wrapped_method)
         return cls
     return decorator
 
