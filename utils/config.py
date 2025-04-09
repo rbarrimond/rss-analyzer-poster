@@ -2,6 +2,7 @@
 
 import os
 import json
+from functools import cached_property
 from utils.azclients import AzureClientFactory as acf
 
 class ConfigLoader:
@@ -29,22 +30,19 @@ class ConfigLoader:
 
     def __init__(self, container_name: str = os.environ.get("CONFIG_CONTAINER_NAME", "config"),
                  blob_name: str = os.environ.get("CONFIG_BLOB_NAME", "config.json")):
-        """Initialize the ConfigLoader by loading JSON configuration from Azure blob storage."""
-        # Avoid reloading if already initialized
-        if hasattr(self, '_config'):
-            return  # already loaded
+        """Initialize the ConfigLoader with container and blob names."""
+        self.container_name = container_name
+        self.blob_name = blob_name
 
+    @cached_property
+    def config(self) -> dict:
+        """Retrieve the entire configuration dictionary, loading it from Azure Blob storage if necessary."""
         try:
             # Load configuration from Azure Blob storage
-            self._config = json.loads(acf.get_instance().download_blob_content(container_name, blob_name))
+            return json.loads(acf.get_instance().download_blob_content(self.container_name, self.blob_name))
         except Exception as e:
             # Raise an AttributeError if the blob fails to load
-            raise AttributeError(f"Failed to load configuration from blob '{blob_name}' in container '{container_name}': {e}") from e
-
-    @property
-    def config(self) -> dict:
-        """Retrieve the entire configuration dictionary."""
-        return self._config
+            raise AttributeError(f"Failed to load configuration from blob '{self.blob_name}' in container '{self.container_name}': {e}") from e
 
     def get_config(self, target_class: str) -> dict:
         """Retrieve the configuration for the given target class.
@@ -58,6 +56,6 @@ class ConfigLoader:
         Raises:
             KeyError: If the configuration for the target class is not found.
         """
-        if target_class in self._config:
-            return self._config[target_class]
+        if target_class in self.config:
+            return self.config[target_class]
         raise KeyError(f"Configuration for '{target_class}' not found.")
