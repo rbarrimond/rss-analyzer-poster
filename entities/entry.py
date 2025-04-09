@@ -186,11 +186,11 @@ class Entry(BaseModel):
         Returns:
             Optional[str]: The content of the entry, or NULL_CONTENT if not available.
         """
-        content = self._get_content_blob()
+        content = self._fetch_content_from_blob()
 
         if not content:
             logger.warning("Content not available in blob storage. Attempting to retrieve from HTTP.")
-            content = self._get_content_http()
+            content = self._fetch_content_from_http()
         
         if not content:
             logger.warning("Content not available in blob storage or HTTP.")
@@ -232,15 +232,23 @@ class Entry(BaseModel):
         return parse_date(v)
 
     @log_and_raise_error("Failed to save entry")
-    def save(self) -> None:
+    def save(self, content: Optional[str] = None) -> None:
         """
         Save or update the Entry instance in Azure Table Storage.
 
         Serializes the current state of the Entry and updates the corresponding entity record in storage.
+
+        Args:
+            content (Optional[str]): The content to persist. If not provided, defaults to self.content.
         """
-        if not self.content:
+        # Fetch content only once to avoid recursion
+        content = content or self.content
+
+        if not content or content == NULL_CONTENT:
             raise ValueError("Content is not available.")
-        self._persist_content()
+
+        # Persist the content and update the entity in Azure Table Storage
+        self._save_content_to_blob(content)
         acf.get_instance().table_upsert_entity(self.model_dump(mode="json", by_alias=True))
 
     @log_and_raise_error("Failed to delete entry")
@@ -258,7 +266,7 @@ class Entry(BaseModel):
         logger.debug("Entry %s/%s deleted from blob storage.", self.partition_key, self.row_key)
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
-    def _get_content_blob(self) -> Optional[str]:
+    def _fetch_content_from_blob(self) -> Optional[str]:
         """
         Retrieve the content blob from Azure Blob Storage.
 
@@ -267,17 +275,17 @@ class Entry(BaseModel):
         Returns:
             Optional[str]: The content as a string, or None if the blob is not available.
         """
-        blob_name = f"{self.partition_key}/{self.row_key}_content.md"
-        logger.debug("Retrieving content blob: %s", blob_name)
+        blob_path = f"{self.partition_key}/{self.row_key}_content.md"
+        logger.debug("Retrieving content blob: %s", blob_path)
 
         return acf.get_instance().download_blob_content(
             container_name=RSS_ENTRY_CONTAINER_NAME,
-            blob_name=blob_name,
+            blob_name=blob_path,
         )
 
     @log_execution_time()
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
-    def _get_content_http(self) -> Optional[str]:
+    def _fetch_content_from_http(self) -> Optional[str]:
         """
         Retrieve the content via HTTP from the entry's link.
 
@@ -297,28 +305,33 @@ class Entry(BaseModel):
             logger.debug("Content converted to markdown. Length %d characters.", len(markdown))
             return markdown
         else:
+            logger.warning("Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
+            logger.debug("Response content: %s", response.text)
             response.raise_for_status()
 
     @log_and_raise_error("Failed to persist content")
     @retry_on_failure(retries=1, delay=2000)
-    def _persist_content(self) -> None:
+    def _save_content_to_blob(self, entry_content: str) -> None:
         """
         Persist the content to Azure Blob Storage.
 
         Uploads the content to Azure Blob Storage under a path based on the partition key
         and the row key.
-        """
-        if not self.content:
-            raise ValueError("Content is not available from cache.")
 
-        result = acf.get_instance().upload_blob_content(
+        Args:
+            entry_content (str): The content to persist.
+        """
+        if not entry_content:
+            raise ValueError("Content is not available to persist.")
+
+        upload_result = acf.get_instance().upload_blob_content(
             container_name=RSS_ENTRY_CONTAINER_NAME,
             blob_name=f"{self.partition_key}/{self.row_key}_content.md",
-            content=self.content,
+            content=entry_content,
         )
 
         logger.debug("Content %s/%s_content.txt persisted to blob storage with result %s.",
-                     self.partition_key, self.row_key, result)
+                     self.partition_key, self.row_key, upload_result)
 
 
 class AIEnrichment(BaseModel):
