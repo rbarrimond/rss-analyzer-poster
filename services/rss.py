@@ -30,7 +30,6 @@ logger = LoggerFactory.get_logger(__name__)
 # This is the Unix epoch time (1970-01-01T00:00:00Z) used as a fallback for last ingestion.
 EPOCH_RFC1123 = datetime(1970, 1, 1)
 
-# @trace_class
 class RssIngestionService:
     """
     The RssIngestionService class is responsible for managing RSS feed processing.
@@ -132,8 +131,8 @@ class RssIngestionService:
         logger.debug("Feed at %s updated (final URL: %s).", feed_url, response.url)
         return response.status_code == 200
 
-    @log_and_raise_error("Failed to ingest feed")
-    def ingest_feed(self, feed_url: str) -> None:
+    @log_and_return_default(default_value=False, message="Failed to ingest feed")
+    def ingest_feed(self, feed_url: str) -> bool:
         """
         Enqueue an RSS feed for further processing.
 
@@ -193,3 +192,5 @@ class RssIngestionService:
 
         acf.get_instance().send_to_queue(os.getenv('RSS_ENTRY_QUEUE_NAME'), payload)
         logger.info("Feed %s ingested and queued successfully.", feed_data['feed']['title'])
+
+        return True
