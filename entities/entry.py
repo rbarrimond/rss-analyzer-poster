@@ -21,7 +21,7 @@ from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
                       field_validator, field_serializer, PrivateAttr)
 
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure
+from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure, ensure_cleanup
 from utils.logger import LoggerFactory
 from utils.parser import normalize_html, html_to_markdown, parse_date, truncate_markdown
 
@@ -126,9 +126,12 @@ class Entry(BaseModel):
         description="Source of the entry."
         )
 
-    # Add a private thread lock attribute
+    # Private attributes
+    _content_cache: Optional[str] = PrivateAttr(default=None)  # Cache for fetched content
     _http_fetch_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
 
+    # Validators
     @field_validator("summary", mode="before")
     @classmethod
     def clean_and_truncate_summary(cls, v):
@@ -167,6 +170,30 @@ class Entry(BaseModel):
             raise ValueError("The 'link' field must be a valid URL string.")
         return v
 
+    @field_validator("published", mode="before")
+    @classmethod
+    def validate_published(cls, v: Any) -> Any:
+        """
+        Validates and converts the 'published' field to a datetime object.
+
+        This method ensures that the 'published' field is always a datetime object,
+        regardless of whether it was stored as a string, timestamp, or another type in Azure Table Storage.
+
+        Args:
+            v (Any): The value of the 'published' field, which may be a string, timestamp, or datetime object.
+
+        Returns:
+            datetime: The validated 'published' field as a datetime object.
+
+        Raises:
+            ValueError: If the input cannot be parsed into a valid datetime.
+        """
+        parsed_date = parse_date(v)
+        if parsed_date is None:
+            raise ValueError(f"Invalid date format for 'published': {v}")
+        return parsed_date
+
+    # Computed Fields
     @computed_field(alias="RowKey", 
                     description="RowKey of the entry in Azure Table Storage, computed from the RSS entry's id.")
     @cached_property
@@ -190,84 +217,73 @@ class Entry(BaseModel):
         Returns:
             Optional[str]: The content of the entry, or NULL_CONTENT if not available.
         """
-        content = self._fetch_content_from_blob()
+        return self.fetch_content()
 
-        if not content:
-            logger.warning("Content not available in blob storage. Attempting to retrieve from HTTP.")
-            content = self._fetch_content_from_http()
-        
-        if not content:
-            logger.warning("Content not available in blob storage or HTTP.")
-            logger.debug("Content not available for entry %s/%s.", self.partition_key, self.row_key)
-            return NULL_CONTENT  # Use the descriptive constant
-        
-        logger.debug("Content retrieved for entry %s/%s_content.md  (%s...%s).",
-                     self.partition_key, self.row_key,
-                     content[:10], content[-10:])
-        return content
-
-    @field_serializer("content", mode="wrap")
-    def serialize_content(self, field, value, info):
+    # Fetch Content
+    @ensure_cleanup(lambda self: setattr(self._recursion_guard, "active", False))
+    def fetch_content(self) -> Optional[str]:
         """
-        Customize the serialization of the 'content' field.
+        Fetch the content of the entry from Blob Storage or HTTP.
 
-        Exclude the field when dumping to a dictionary but include it when serializing to JSON.
-        """
-        _ = field
-        if info.mode == "dict":
-            return None  # Exclude from dict serialization
-        return value  # Include in JSON serialization
-
-    @field_validator("published", mode="before")
-    @classmethod
-    def validate_published(cls, v: Any) -> Any:
-        """
-        Validates and converts the 'published' field to a datetime object.
-
-        This method ensures that the 'published' field is always a datetime object,
-        regardless of whether it was stored as a string, timestamp, or another type in Azure Table Storage.
-
-        Args:
-            v (Any): The value of the 'published' field, which may be a string, timestamp, or datetime object.
+        This method attempts to fetch the content from Azure Blob Storage first.
+        If the content is not available in Blob Storage, it falls back to fetching via HTTP.
 
         Returns:
-            datetime: The validated 'published' field as a datetime object.
+            Optional[str]: The fetched content, or NULL_CONTENT if not available.
         """
-        return parse_date(v)
+        if getattr(self._recursion_guard, "active", False):
+            logger.error("Recursion detected in fetch_content for entry %s/%s.", self.partition_key, self.row_key)
+            return NULL_CONTENT  # Prevent recursion
 
-    @log_and_raise_error("Failed to save entry")
-    def save(self, save_content: Optional[str] = None) -> None:
+        self._recursion_guard.active = True  # Set the recursion guard
+        # Fetch content from Blob Storage
+        content = self._fetch_content_from_blob()
+        if content:
+            self._content_cache = content
+            return content
+
+        # Fallback to HTTP fetch
+        logger.warning("Content not available in blob storage. Attempting to retrieve from HTTP.")
+        content = self._fetch_content_from_http()
+        if content:
+            self._content_cache = content
+            return content
+
+        # Content not available
+        logger.warning("Content not available in blob storage or HTTP.")
+        return NULL_CONTENT
+
+    @log_execution_time()
+    @ensure_cleanup(lambda self: setattr(self._recursion_guard, "active", False))
+    @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
+    def _fetch_content_from_http(self) -> Optional[str]:
         """
-        Save or update the Entry instance in Azure Table Storage.
+        Retrieve the content via HTTP from the entry's link.
 
-        Serializes the current state of the Entry and updates the corresponding entity record in storage.
+        Attempts to download the entry content with a timeout. If the response status is 200, returns the text;
+        otherwise, raises an HTTP error.
 
-        Args:
-            content (Optional[str]): The content to persist. If not provided, defaults to self.content.
+        This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
         """
-        # Fetch content only once to avoid recursion
-        content = save_content or self.content
+        if getattr(self._recursion_guard, "active", False):
+            logger.error("Recursion detected in _fetch_content_from_http for entry %s/%s.", self.partition_key, self.row_key)
+            return None  # Prevent recursion
 
-        if not content or content == NULL_CONTENT:
-            raise ValueError("Content is not available.")
+        self._recursion_guard.active = True  # Set the recursion guard
+        with self._http_fetch_lock:  # Use the private thread lock
+            logger.debug("Retrieving content from HTTP link: %s", self.link)
 
-        # Persist the content and update the entity in Azure Table Storage
-        self._save_content_to_blob(content)
-        acf.get_instance().table_upsert_entity(self.model_dump(mode="json", by_alias=True))
-
-    @log_and_raise_error("Failed to delete entry")
-    def delete(self) -> None:
-        """
-        Delete the Entry instance from Azure Table Storage.
-
-        Removes the corresponding entity record using its partition and row keys.
-        """
-        acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
-                                        blob_name=f"{self.partition_key}/{self.row_key}_content.txt")
-        acf.get_instance().table_delete_entity(RSS_ENTRY_TABLE_NAME,
-                                                self.model_dump(mode="json", by_alias=True)
-                                                )
-        logger.debug("Entry %s/%s deleted from blob storage.", self.partition_key, self.row_key)
+            response = requests.get(self.link, timeout=10)
+            if response.status_code == 200:
+                logger.debug("Content retrieved successfully from HTTP link.")
+                norm_html = normalize_html(response.text)
+                markdown = html_to_markdown(norm_html)
+                logger.debug("Content converted to markdown. Length %d characters.", len(markdown))
+                return markdown
+            else:
+                logger.warning("Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
+                logger.debug("Response content: %s", response.text)
+                response.raise_for_status()
 
     @log_and_return_default(default_value=None, message="Failed to retrieve content blob")
     def _fetch_content_from_blob(self) -> Optional[str]:
@@ -287,32 +303,8 @@ class Entry(BaseModel):
             blob_name=blob_path,
         )
 
-    @log_execution_time()
-    @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
-    def _fetch_content_from_http(self) -> Optional[str]:
-        """
-        Retrieve the content via HTTP from the entry's link.
-
-        Attempts to download the entry content with a timeout. If the response status is 200, returns the text;
-        otherwise, raises an HTTP error.
-
-        This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
-        """
-        with self._http_fetch_lock:  # Use the private thread lock
-            logger.debug("Retrieving content from HTTP link: %s", self.link)
-
-            response = requests.get(self.link, timeout=10)
-            if response.status_code == 200:
-                logger.debug("Content retrieved successfully from HTTP link.")
-                norm_html = normalize_html(response.text)
-                markdown = html_to_markdown(norm_html)
-                logger.debug("Content converted to markdown. Length %d characters.", len(markdown))
-                return markdown
-            else:
-                logger.warning("Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
-                logger.debug("Response content: %s", response.text)
-                response.raise_for_status()
-
+    # Save Content
+    @ensure_cleanup(lambda self: logger.debug("Cleanup after saving content"))
     @log_and_raise_error("Failed to persist content")
     @retry_on_failure(retries=1, delay=2000)
     def _save_content_to_blob(self, entry_content: str) -> None:
@@ -336,6 +328,58 @@ class Entry(BaseModel):
 
         logger.debug("Content %s/%s_content.txt persisted to blob storage with result %s.",
                      self.partition_key, self.row_key, upload_result)
+
+    # Cache Management
+    def get_cached_content(self) -> Optional[str]:
+        """
+        Retrieve the cached content of the entry.
+
+        Returns:
+            Optional[str]: The cached content, or None if not cached.
+        """
+        return self._content_cache
+
+    # Persistence
+    @log_and_raise_error("Failed to save entry")
+    def save(self) -> None:
+        """
+        Save or update the Entry instance in Azure Table Storage.
+
+        Fetches the content if not already cached and persists it to Blob Storage.
+        """
+        content = self.get_cached_content() or self.fetch_content()
+        if not content or content == NULL_CONTENT:
+            raise ValueError("Content is not available.")
+
+        # Persist the content and update the entity in Azure Table Storage
+        self._save_content_to_blob(content)
+        acf.get_instance().table_upsert_entity(self.model_dump(mode="json", by_alias=True))
+
+    @log_and_raise_error("Failed to delete entry")
+    def delete(self) -> None:
+        """
+        Delete the Entry instance from Azure Table Storage.
+
+        Removes the corresponding entity record using its partition and row keys.
+        """
+        acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
+                                        blob_name=f"{self.partition_key}/{self.row_key}_content.txt")
+        acf.get_instance().table_delete_entity(RSS_ENTRY_TABLE_NAME,
+                                                self.model_dump(mode="json", by_alias=True)
+                                                )
+        logger.debug("Entry %s/%s deleted from blob storage.", self.partition_key, self.row_key)
+
+    @field_serializer("content", mode="wrap")
+    def serialize_content(self, field, value, info):
+        """
+        Customize the serialization of the 'content' field.
+
+        Exclude the field when dumping to a dictionary but include it when serializing to JSON.
+        """
+        _ = field
+        if info.mode == "dict":
+            return None  # Exclude from dict serialization
+        return value  # Include in JSON serialization
 
 
 class AIEnrichment(BaseModel):

@@ -64,6 +64,7 @@ class RssIngestionService:
             raise ValueError("Missing required configuration values.")
 
     @log_and_raise_error("RSS Ingestion Service failed to enqueue feeds")
+    @retry_on_failure(retries=3, delay=1000, backoff_factor=2.0)
     def enqueue_feeds(self):
         """
         Process each configured RSS feed by checking for updates and enqueuing updated feeds.
@@ -95,8 +96,8 @@ class RssIngestionService:
                     self.config["RssIngestionService"]['last_ingestion'])
         
 
-    @log_and_return_default(False, message="Failed to check feed for update")
-    @retry_on_failure(retries=1, delay=0)  # Retry once with delay coming from timeout in requests.get()
+    @log_and_return_default(False, message="Check for feed update failed.")
+    @retry_on_failure(retries=3, delay=1000, backoff_factor=2.0)
     def _check_feed_for_update(self, feed_url: str, modified_since: datetime = EPOCH_RFC1123) -> bool:
         """
         Check whether an RSS feed has been updated based on the provided timestamp.
@@ -173,8 +174,6 @@ class RssIngestionService:
         # Create the entries and persist them
         for entry in feed_data.entries:
             entry = Entry(partition_key=partition_key, feed_key=feed.row_key, **entry)
-            # Force loading content to ensure it is persisted
-            _ = entry.content
             entry.save()
             entry_keys.append((entry.partition_key, entry.row_key))
             logger.debug("Created entry: %s", entry.row_key)
