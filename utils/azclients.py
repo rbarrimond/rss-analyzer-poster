@@ -180,7 +180,7 @@ class AzureClientFactory:
                 logger.info("✅ Azure OpenAI %s client created successfully.", model)
         return self._openai_clients
 
-    @log_and_return_default(default_value=None, message="Blob download failed")
+    @log_and_raise_error(message="Failed to download blob content")
     @lru_cache(maxsize=100)  # Cache results for up to 100 blobs
     def download_blob_content(self, container_name: str, blob_name: str) -> bytes | str | None:
         """
@@ -211,7 +211,7 @@ class AzureClientFactory:
             logger.warning("Blob not found: container=%s, blob=%s", container_name, blob_name)
             return None
 
-    @log_and_return_default(default_value=None, message="Blob upload failed")
+    @log_and_raise_error(message="Failed to upload blob content")
     def upload_blob_content(self, container_name: str, blob_name: str, content: str | bytes) -> Dict[str, Any]:
         """
         Uploads content to a blob in Azure Blob Storage.
@@ -235,7 +235,7 @@ class AzureClientFactory:
 
         return result
 
-    @log_and_raise_error("Blob delete failed")
+    @log_and_raise_error(message="Failed to delete blob")
     def delete_blob(self, container_name: str, blob_name: str) -> None:
         """
         Deletes a blob from Azure Blob Storage.
@@ -253,7 +253,7 @@ class AzureClientFactory:
         result = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name).delete_blob()
         logger.debug("Blob deleted from container=%s, blob=%s with result: %s", container_name, blob_name, result)
 
-    @log_and_raise_error("Table entity upsert failed")
+    @log_and_raise_error(message="Failed to upsert entity in table")
     def table_upsert_entity(self, table_name: str, entity: dict) -> dict:
         """
         Upserts an entity into an Azure Table Storage table.
@@ -276,7 +276,7 @@ class AzureClientFactory:
         
         return result
     
-    @log_and_raise_error("Table entity delete failed")
+    @log_and_raise_error(message="Failed to delete entity from table")
     def table_delete_entity(self, table_name: str, entity: dict) -> None:
         """
         Deletes an entity from an Azure Table Storage table.
@@ -297,7 +297,7 @@ class AzureClientFactory:
         
         return result
 
-    @log_and_raise_error("Queue send failed")
+    @log_and_raise_error(message="Failed to send payload to queue")
     def send_to_queue(self, queue_name: str, payload: dict) -> None:
         """
         Sends a payload to an Azure Queue.

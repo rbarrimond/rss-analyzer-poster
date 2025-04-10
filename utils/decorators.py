@@ -12,6 +12,8 @@ This module provides a collection of decorators organized into logical groups:
 4. Tracing Decorators:
    - trace_method: Traces method execution.
    - trace_class: Applies trace_method to all non-dunder methods of a class.
+5. Cleanup Decorators:
+   - ensure_cleanup: Ensures a cleanup function is executed after the wrapped function completes.
 
 Note:
     For all decorators, if the decorated function is a dunder (its name starts and ends with '__'),
@@ -59,21 +61,21 @@ def log_and_raise_error(
     message: str = "An unexpected error occurred.",
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
     exception_class: Type[Exception] = Exception,
-    log_level: int = logging.ERROR  # Added log_level parameter
+    log_level: int = logging.ERROR
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and raise a specified exception."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            logger.debug("Applying log_and_raise_error to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                # Ensure consistent error message
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
-                _log_once(logger, log_level, error_message)  # Use log_level
-                _log_once(logger, log_level, error_message)  # Use log_level
+                _log_once(logger, log_level, error_message)
+                logger.error("Raising exception %s for function %s", exception_class.__name__, func.__name__)
                 raise exception_class(message) from e
         return wrapper
     return decorator
@@ -81,20 +83,21 @@ def log_and_raise_error(
 def log_and_ignore_error(
     message: str = "An unexpected error occurred.",
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
-    log_level: int = logging.ERROR  # Added log_level parameter
+    log_level: int = logging.ERROR
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and ignore it."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            logger.debug("Applying log_and_ignore_error to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
                 return func(*args, **kwargs)
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
-                _log_once(logger, log_level, error_message)  # Use log_level
-                _log_once(logger, log_level, error_message)  # Use log_level
+                _log_once(logger, log_level, error_message)
+                logger.warning("Ignoring exception in function %s", func.__name__)
                 return None
         return wrapper
     return decorator
@@ -103,20 +106,21 @@ def log_and_return_default(
     default_value: Any,
     message: str = "An unexpected error occurred.",
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
-    log_level: int = logging.ERROR  # Added log_level parameter
+    log_level: int = logging.ERROR
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and return a default value."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            logger.debug("Applying log_and_return_default to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
                 return func(*args, **kwargs)
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
-                _log_once(logger, log_level, error_message)  # Use log_level
-                _log_once(logger, log_level, error_message)  # Use log_level
+                _log_once(logger, log_level, error_message)
+                logger.info("Returning default value for function %s", func.__name__)
                 return default_value
         return wrapper
     return decorator
@@ -177,46 +181,18 @@ def retry_on_failure(
     logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG),
     retries: int = 3,
     delay: int = 1000,
-    log_level: int = logging.DEBUG
+    log_level: int = logging.DEBUG,
+    backoff_factor: float = 1.0
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """
-    Decorator factory that retries a function call upon failure. It catches exceptions,
-    logs each retry attempt, and reattempts after a specified delay until the retry limit is reached.
-
-    Parameters:
-        logger (logging.Logger): Logger instance for logging retry attempts and errors.
-            Defaults to a logger for the current module at DEBUG level.
-        retries (int): Maximum number of retry attempts.
-            Defaults to 3.
-        delay (int): Delay in milliseconds between retries.
-            Defaults to 1000 (1 second).
-        log_level (int): Logging level for retry messages.
-            Defaults to logging.DEBUG.
-
-    Returns:
-        Callable: A decorator wrapping the target function.
-
-    Note:
-        Dunder functions are not subject to retry logic or logging.
-
-    Example:
-        @retry_on_failure(retries=5, delay=2000)
-        def unstable_function():
-            # Function that may intermittently fail.
-            pass
-
-        # Dunder method example:
-        class MyClass:
-            @retry_on_failure
-            def __str__(self):
-                return "MyClass"
-    """
+    """Decorator factory that retries a function call upon failure."""
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            logger.debug("Applying retry_on_failure to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             attempt = 0
+            current_delay = delay
             while attempt <= retries:
                 try:
                     if attempt > 0:
@@ -226,8 +202,11 @@ def retry_on_failure(
                     logger.error("Exception on attempt %d for function %s: %s", attempt, func.__name__, e)
                     attempt += 1
                     if attempt > retries:
+                        logger.error("Max retries reached for function %s", func.__name__)
                         raise
-                    time.sleep(delay / 1000.0)
+                    logger.debug("Retrying function %s after %d ms", func.__name__, current_delay)
+                    time.sleep(current_delay / 1000.0)
+                    current_delay *= backoff_factor
         return wrapper
     return decorator
 
@@ -267,6 +246,30 @@ def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, hand
                     return result
                 setattr(cls, attr_name, wrapped_method)
         return cls
+    return decorator
+
+# ------------------------------
+# Cleanup Decorators
+# ------------------------------
+
+def ensure_cleanup(cleanup_func: Callable[..., None]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    Decorator to ensure a cleanup function is executed after the wrapped function completes.
+
+    Args:
+        cleanup_func (Callable[..., None]): The cleanup function to execute.
+
+    Returns:
+        Callable: The decorated function.
+    """
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            finally:
+                cleanup_func(*args, **kwargs)
+        return wrapper
     return decorator
 
 
