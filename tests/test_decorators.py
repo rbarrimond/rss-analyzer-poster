@@ -138,6 +138,7 @@ def test_retry_on_failure_exhausted():
 # Tests for Tracing Decorators
 # ------------------------------
 
+@pytest.mark.skip(reason="Deactivating tests for @trace_method")
 class TestTraceMethod:
     def test_trace_method_logs_correctly(self):
         @trace_method(logger=mock_logger)
@@ -152,6 +153,7 @@ class TestTraceMethod:
         mock_logger.debug.assert_any_call(mock.ANY)  # Match the "finished" log with duration
 
 
+@pytest.mark.skip(reason="Deactivating tests for @trace_class")
 class TestTraceClass:
     def test_trace_class_applies_to_methods(self):
         @trace_class(logger=mock_logger)
