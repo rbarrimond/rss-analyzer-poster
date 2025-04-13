@@ -67,9 +67,10 @@ class Entry(BaseModel):
             "Link",
             "Published",
             "Author",
+            "Tags",
             "Summary",
             "Source",
-            "Content"        # Blob-backed field
+            # "Content"        # Blob-backed field
         ]
     )
     
@@ -113,6 +114,11 @@ class Entry(BaseModel):
         alias="Author",
         description="Author of the entry.",
         max_length=50
+        )
+    tags: list[str] = Field(
+        default=None,
+        alias="Tags",
+        description="List of tags associated with the entry."
         )
     summary: Optional[str] = Field(
         default=None,
@@ -206,7 +212,7 @@ class Entry(BaseModel):
         """
         return xxhash.xxh64(self.id).hexdigest()
 
-    @computed_field(alias="Content", description="Cached content of the entry.")  
+    # @computed_field(alias="Content", description="Cached content of the entry.")  
     @cached_property
     def content(self) -> Optional[str]:
         """
@@ -304,7 +310,6 @@ class Entry(BaseModel):
         )
 
     # Save Content
-    @ensure_cleanup(lambda self: logger.debug("Cleanup after saving content"))
     @log_and_raise_error("Failed to persist content")
     @retry_on_failure(retries=1, delay=2000)
     def _save_content_to_blob(self, entry_content: str) -> None:
@@ -369,17 +374,17 @@ class Entry(BaseModel):
                                                 )
         logger.debug("Entry %s/%s deleted from blob storage.", self.partition_key, self.row_key)
 
-    @field_serializer("content", mode="wrap")
-    def serialize_content(self, field, value, info):
-        """
-        Customize the serialization of the 'content' field.
+    # @field_serializer("content", mode="wrap")
+    # def serialize_content(self, field, value, info):
+    #     """
+    #     Customize the serialization of the 'content' field.
 
-        Exclude the field when dumping to a dictionary but include it when serializing to JSON.
-        """
-        _ = field
-        if info.mode == "dict":
-            return None  # Exclude from dict serialization
-        return value  # Include in JSON serialization
+    #     Exclude the field when dumping to a dictionary but include it when serializing to JSON.
+    #     """
+    #     _ = field
+    #     if info.mode == "dict":
+    #         return None  # Exclude from dict serialization
+    #     return value  # Include in JSON serialization
 
 
 class AIEnrichment(BaseModel):
@@ -415,14 +420,12 @@ class AIEnrichment(BaseModel):
     )
     
     partition_key: str = Field(
-        default="entry",
         alias="PartitionKey",
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key of the associated entry (alphanumeric, dash, underscore only) to ensure a valid blob path."
         )
     row_key: str = Field(
-        default="entry",
-        alias="PartitionKey",
+        alias="RowKey",
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Row key of the associated entry (alphanumeric, dash, underscore only) to ensure a valid blob path."
         )
@@ -456,12 +459,15 @@ class AIEnrichment(BaseModel):
     engagement_categories: Optional[Set[Literal['Liked', 'Comment', 'Shared']]] = Field(
         default=None,
         alias="EngagementCategories",
-        max_items=3,
-        min_items=1,
+        max_length=3,
+        min_length=1,
         description="Categories of engagement"
         )
 
-    @computed_field(alias="Embeddings", description="Cached embeddings of the entry.")
+    # Private attributes
+    _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
+
+    # @computed_field(alias="Embeddings", description="Cached embeddings of the entry.")
     @cached_property
     def embeddings(self) -> Optional[np.ndarray]:
         """
@@ -473,6 +479,30 @@ class AIEnrichment(BaseModel):
             Optional[np.ndarray]: The embeddings numpy array, or None if not available.
         """
         return self._fetch_embeddings_from_blob
+
+    @ensure_cleanup(lambda self: setattr(self._recursion_guard, "active", False))
+    def _fetch_embeddings_from_blob(self) -> Optional[np.ndarray]:
+        """
+        Retrieve and load the embeddings numpy array from Azure Blob Storage.
+
+        Returns:
+            Optional[np.ndarray]: The embeddings numpy array, or None if the blob is not available.
+        """
+        if getattr(self._recursion_guard, "active", False):
+            logger.error("Recursion detected in _fetch_embeddings_from_blob for AI enrichment %s/%s.", self.partition_key, self.row_key)
+            return None  # Prevent recursion
+
+        self._recursion_guard.active = True  # Set the recursion guard
+        blob_bytes = acf.get_instance().download_blob_content(
+            container_name=RSS_ENTRY_CONTAINER_NAME,
+            blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy",
+        )
+        if blob_bytes is None:
+            return None
+
+        embeddings = np.load(io.BytesIO(blob_bytes), allow_pickle=True)
+        logger.debug("Embeddings %s/%s_embeddings.npy loaded from blob storage.", self.partition_key, self.row_key)
+        return embeddings
 
     @log_and_raise_error("Failed to save AI enrichment")
     def save(self, save_embeddings: np.ndarray = None) -> None:
@@ -502,23 +532,6 @@ class AIEnrichment(BaseModel):
         acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
                                         blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy")
         logger.debug("AI enrichment %s/%s deleted.", self.partition_key, self.row_key)
-
-    @log_and_return_default(default_value=None, message="Failed to retrieve embeddings blob")
-    def _fetch_embeddings_from_blob(self) -> Optional[np.ndarray]:
-        """
-        Retrieve and load the embeddings numpy array from Azure Blob Storage.
-
-        Returns:
-            Optional[np.ndarray]: The embeddings numpy array, or None if the blob is not available.
-        """
-        blob_bytes = acf.get_instance().download_blob_content(
-            container_name=RSS_ENTRY_CONTAINER_NAME,
-            blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy",
-        )
-        embeddings = np.load(io.BytesIO(blob_bytes))
-        
-        logger.debug("Embeddings %s/%s_embeddings.npy loaded from blob storage.", self.partition_key, self.row_key)
-        return embeddings
 
     @log_and_raise_error("Failed to persist embeddings")
     @retry_on_failure(retries=1, delay=2000)

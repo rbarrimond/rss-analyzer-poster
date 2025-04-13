@@ -22,7 +22,7 @@ from utils.decorators import log_and_return_default
 nltk.download('punkt_tab', quiet=True)
 
 @log_and_return_default(default_value=None, message="Failed to parse date")
-def parse_date(date_str: str | int | float | None) -> datetime:
+def parse_date(date_str: str | int | float | datetime | None) -> datetime:
     """
     Parses a date string, timestamp, or None into a datetime object.
 
@@ -37,8 +37,8 @@ def parse_date(date_str: str | int | float | None) -> datetime:
     Returns:
         datetime: The parsed datetime object, or None if parsing fails.
     """
-    if date_str is None:
-        return None
+    if date_str is None or isinstance(date_str, datetime):
+        return date_str
     if isinstance(date_str, (int, float)):
         return datetime.fromtimestamp(date_str)
     if isinstance(date_str, str):
