@@ -21,6 +21,7 @@ from utils.decorators import log_and_return_default
 # Download the punkt tokenizer models for sentence tokenization
 nltk.download('punkt_tab', quiet=True)
 
+
 @log_and_return_default(default_value=None, message="Failed to parse date")
 def parse_date(date_str: str | int | float | datetime | None) -> datetime:
     """
@@ -46,6 +47,7 @@ def parse_date(date_str: str | int | float | datetime | None) -> datetime:
         return parser.parse(date_str)
     return None
 
+
 def normalize_html(html: str) -> str:
     """
     Normalize HTML or plain text content. If the content lacks meaningful HTML structure,
@@ -67,13 +69,14 @@ def normalize_html(html: str) -> str:
 
     return str(soup)
 
+
 def html_to_markdown(html: str) -> str:
     """
     Convert HTML to Markdown while preserving structure.
     """
     if not html:
         return ""
-    
+
     converter = html2text.HTML2Text()
     converter.ignore_links = False
     converter.ignore_images = False
@@ -83,20 +86,21 @@ def html_to_markdown(html: str) -> str:
 
     return converter.handle(html).strip()
 
+
 def truncate_markdown(markdown: str, max_sentences: int = 0, max_chars: int = 0) -> str:
     """
     Truncate Markdown text by sentence or character count.
     """
     if not markdown:
         return ""
-    
+
     truncated = markdown
 
     if max_sentences > 0:
         sentences = sent_tokenize(truncated)
         truncated = " ".join(sentences[:max_sentences])
-    
+
     if max_chars > 0 and len(truncated) > max_chars:
         truncated = truncated[:max_chars].rsplit('\n', 1)[0].strip()
-    
+
     return truncated
