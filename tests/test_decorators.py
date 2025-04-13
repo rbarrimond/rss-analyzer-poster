@@ -9,6 +9,8 @@ from utils.decorators import (log_and_ignore_error, log_and_raise_error,
                               log_and_return_default, log_execution_time,
                               retry_on_failure, trace_class, trace_method, _log_once_tracker)
 
+# pylint: disable=W0212
+
 # Mock logger for testing
 mock_logger = MagicMock()
 

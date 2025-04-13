@@ -18,7 +18,7 @@ import numpy as np
 import requests
 import xxhash
 from pydantic import (BaseModel, ConfigDict, Field, HttpUrl, computed_field,
-                      field_validator, field_serializer, PrivateAttr)
+                      field_validator, PrivateAttr)
 
 from utils.azclients import AzureClientFactory as acf
 from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure, ensure_cleanup
@@ -35,6 +35,7 @@ logger = LoggerFactory.get_logger(__name__)
 
 # Define a module-level constant for the sentinel value
 NULL_CONTENT = "\ue000"  # Unicode private use character for missing content
+
 
 class Entry(BaseModel):
     """Represents an RSS entry entity.
@@ -73,69 +74,72 @@ class Entry(BaseModel):
             # "Content"        # Blob-backed field
         ]
     )
-    
+
     partition_key: str = Field(
         default="entry",
         alias="PartitionKey",
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key (alphanumeric, dash, underscore only) to ensure a valid blob path."
-        )
+    )
     id: str = Field(
         alias="Id",
         min_length=1,
         max_length=200,
         description="Original ID from the RSS feed. Used only as a source identifier and is not guaranteed to be unique or stable."
-        )
+    )
     feed_key: str = Field(
         alias="FeedKey",
         min_length=16,
         max_length=16,
         pattern=r"^[a-f0-9]{16}$",
         description="RowKey of the feed to which this entry belongs."
-        )
+    )
     title: str = Field(
         default="Untitled",
         alias="Title",
         min_length=1,
         max_length=200,
         description="Title of the entry."
-        )
+    )
     link: HttpUrl = Field(
         alias="Link",
         description="URL link to the entry. Must be a valid HTTP or HTTPS URL."
-        )
+    )
     published: datetime = Field(
         default=datetime(1970, 1, 1),
         alias="Published",
         description="Published date of the entry."
-        )
+    )
     author: Optional[str] = Field(
         default=None,
         alias="Author",
         description="Author of the entry.",
         max_length=50
-        )
+    )
     tags: list[str] = Field(
         default=None,
         alias="Tags",
         description="List of tags associated with the entry."
-        )
+    )
     summary: Optional[str] = Field(
         default=None,
         alias="Summary",
         description="Summary of the entry.",
         max_length=MAX_SUMMARY_CHARACTERS
-        )
+    )
     source: Optional[dict] = Field(
         default=None,
         alias="Source",
         description="Source of the entry."
-        )
+    )
 
     # Private attributes
-    _content_cache: Optional[str] = PrivateAttr(default=None)  # Cache for fetched content
-    _http_fetch_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
-    _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
+    _content_cache: Optional[str] = PrivateAttr(
+        default=None)  # Cache for fetched content
+    _http_fetch_lock: threading.Lock = PrivateAttr(
+        default_factory=threading.Lock)
+    _recursion_guard: threading.local = PrivateAttr(
+        default_factory=threading.local)
 
     # Validators
     @field_validator("summary", mode="before")
@@ -200,7 +204,7 @@ class Entry(BaseModel):
         return parsed_date
 
     # Computed Fields
-    @computed_field(alias="RowKey", 
+    @computed_field(alias="RowKey",
                     description="RowKey of the entry in Azure Table Storage, computed from the RSS entry's id.")
     @cached_property
     def row_key(self) -> str:
@@ -212,7 +216,7 @@ class Entry(BaseModel):
         """
         return xxhash.xxh64(self.id).hexdigest()
 
-    # @computed_field(alias="Content", description="Cached content of the entry.")  
+    # @computed_field(alias="Content", description="Cached content of the entry.")
     @cached_property
     def content(self) -> Optional[str]:
         """
@@ -238,7 +242,8 @@ class Entry(BaseModel):
             Optional[str]: The fetched content, or NULL_CONTENT if not available.
         """
         if getattr(self._recursion_guard, "active", False):
-            logger.error("Recursion detected in fetch_content for entry %s/%s.", self.partition_key, self.row_key)
+            logger.error("Recursion detected in fetch_content for entry %s/%s.",
+                         self.partition_key, self.row_key)
             return NULL_CONTENT  # Prevent recursion
 
         self._recursion_guard.active = True  # Set the recursion guard
@@ -249,7 +254,8 @@ class Entry(BaseModel):
             return content
 
         # Fallback to HTTP fetch
-        logger.warning("Content not available in blob storage. Attempting to retrieve from HTTP.")
+        logger.warning(
+            "Content not available in blob storage. Attempting to retrieve from HTTP.")
         content = self._fetch_content_from_http()
         if content:
             self._content_cache = content
@@ -272,7 +278,8 @@ class Entry(BaseModel):
         This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
         """
         if getattr(self._recursion_guard, "active", False):
-            logger.error("Recursion detected in _fetch_content_from_http for entry %s/%s.", self.partition_key, self.row_key)
+            logger.error("Recursion detected in _fetch_content_from_http for entry %s/%s.",
+                         self.partition_key, self.row_key)
             return None  # Prevent recursion
 
         self._recursion_guard.active = True  # Set the recursion guard
@@ -284,10 +291,12 @@ class Entry(BaseModel):
                 logger.debug("Content retrieved successfully from HTTP link.")
                 norm_html = normalize_html(response.text)
                 markdown = html_to_markdown(norm_html)
-                logger.debug("Content converted to markdown. Length %d characters.", len(markdown))
+                logger.debug(
+                    "Content converted to markdown. Length %d characters.", len(markdown))
                 return markdown
             else:
-                logger.warning("Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
+                logger.warning(
+                    "Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
                 logger.debug("Response content: %s", response.text)
                 response.raise_for_status()
 
@@ -358,7 +367,8 @@ class Entry(BaseModel):
 
         # Persist the content and update the entity in Azure Table Storage
         self._save_content_to_blob(content)
-        acf.get_instance().table_upsert_entity(self.model_dump(mode="json", by_alias=True))
+        acf.get_instance().table_upsert_entity(
+            self.model_dump(mode="json", by_alias=True))
 
     @log_and_raise_error("Failed to delete entry")
     def delete(self) -> None:
@@ -368,11 +378,13 @@ class Entry(BaseModel):
         Removes the corresponding entity record using its partition and row keys.
         """
         acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
-                                        blob_name=f"{self.partition_key}/{self.row_key}_content.txt")
+                                       blob_name=f"{self.partition_key}/{self.row_key}_content.txt")
         acf.get_instance().table_delete_entity(RSS_ENTRY_TABLE_NAME,
-                                                self.model_dump(mode="json", by_alias=True)
-                                                )
-        logger.debug("Entry %s/%s deleted from blob storage.", self.partition_key, self.row_key)
+                                               self.model_dump(
+                                                   mode="json", by_alias=True)
+                                               )
+        logger.debug("Entry %s/%s deleted from blob storage.",
+                     self.partition_key, self.row_key)
 
     # @field_serializer("content", mode="wrap")
     # def serialize_content(self, field, value, info):
@@ -401,8 +413,8 @@ class AIEnrichment(BaseModel):
         embeddings: AI-generated embeddings as a numpy array; retrieved from Azure Blob Storage if not already cached.
     """
     model_config = ConfigDict(
-        populate_by_name=True, 
-        from_attributes=True, 
+        populate_by_name=True,
+        from_attributes=True,
         validate_assignment=True,
         arbitrary_types_allowed=True,
         strict=False,
@@ -418,54 +430,55 @@ class AIEnrichment(BaseModel):
             "Embeddings"
         ]
     )
-    
+
     partition_key: str = Field(
         alias="PartitionKey",
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Partition key of the associated entry (alphanumeric, dash, underscore only) to ensure a valid blob path."
-        )
+    )
     row_key: str = Field(
         alias="RowKey",
         pattern=r"^[a-zA-Z0-9_-]+$",
         description="Row key of the associated entry (alphanumeric, dash, underscore only) to ensure a valid blob path."
-        )
+    )
     summary: Optional[str] = Field(
         default=None,
         alias="Summary",
         max_length=MAX_SUMMARY_CHARACTERS,
         description="AI generated summary"
-        )
+    )
     grade_level: Optional[float] = Field(
         default=None,
         alias="GradeLevel",
         ge=0,
         le=15.0,
         description="Flesch-Kincaid readability score (0 = easiest, 12 = high school, 15+ = complex academic text)"
-        )
+    )
     difficulty: Optional[float] = Field(
         default=None,
         alias="Difficulty",
         ge=4.9,
         le=11.0,
         description="Dale-Chall readability score (4.9 = easy, 8.0 = difficult, 10+ = very difficult)"
-        )
+    )
     engagement_score: Optional[float] = Field(
         default=None,
         alias="EngagementScore",
         ge=0,
         le=10,
         description="Engagement score"
-        )
+    )
     engagement_categories: Optional[Set[Literal['Liked', 'Comment', 'Shared']]] = Field(
         default=None,
         alias="EngagementCategories",
         max_length=3,
         min_length=1,
         description="Categories of engagement"
-        )
+    )
 
     # Private attributes
-    _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
+    _recursion_guard: threading.local = PrivateAttr(
+        default_factory=threading.local)
 
     # @computed_field(alias="Embeddings", description="Cached embeddings of the entry.")
     @cached_property
@@ -489,7 +502,8 @@ class AIEnrichment(BaseModel):
             Optional[np.ndarray]: The embeddings numpy array, or None if the blob is not available.
         """
         if getattr(self._recursion_guard, "active", False):
-            logger.error("Recursion detected in _fetch_embeddings_from_blob for AI enrichment %s/%s.", self.partition_key, self.row_key)
+            logger.error("Recursion detected in _fetch_embeddings_from_blob for AI enrichment %s/%s.",
+                         self.partition_key, self.row_key)
             return None  # Prevent recursion
 
         self._recursion_guard.active = True  # Set the recursion guard
@@ -501,7 +515,8 @@ class AIEnrichment(BaseModel):
             return None
 
         embeddings = np.load(io.BytesIO(blob_bytes), allow_pickle=True)
-        logger.debug("Embeddings %s/%s_embeddings.npy loaded from blob storage.", self.partition_key, self.row_key)
+        logger.debug("Embeddings %s/%s_embeddings.npy loaded from blob storage.",
+                     self.partition_key, self.row_key)
         return embeddings
 
     @log_and_raise_error("Failed to save AI enrichment")
@@ -517,8 +532,9 @@ class AIEnrichment(BaseModel):
 
         self._save_embeddings_to_blob(embeddings)
         acf.get_instance().table_upsert_entity(table_name=RSS_ENTRY_TABLE_NAME,
-                                                entity=self.model_dump(mode="json", by_alias=True))
-        logger.debug("AI enrichment %s/%s saved.", self.partition_key, self.row_key)
+                                               entity=self.model_dump(mode="json", by_alias=True))
+        logger.debug("AI enrichment %s/%s saved.",
+                     self.partition_key, self.row_key)
 
     @log_and_raise_error("Failed to delete AI enrichment")
     def delete(self) -> None:
@@ -528,10 +544,11 @@ class AIEnrichment(BaseModel):
         Also deletes the associated embeddings blob from Azure Blob Storage.
         """
         acf.get_instance().table_delete_entity(table_name=RSS_ENTRY_TABLE_NAME,
-                                                entity=self.model_dump(mode="json", by_alias=True))
+                                               entity=self.model_dump(mode="json", by_alias=True))
         acf.get_instance().delete_blob(container_name=RSS_ENTRY_CONTAINER_NAME,
-                                        blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy")
-        logger.debug("AI enrichment %s/%s deleted.", self.partition_key, self.row_key)
+                                       blob_name=f"{self.partition_key}/{self.row_key}_embeddings.npy")
+        logger.debug("AI enrichment %s/%s deleted.",
+                     self.partition_key, self.row_key)
 
     @log_and_raise_error("Failed to persist embeddings")
     @retry_on_failure(retries=1, delay=2000)

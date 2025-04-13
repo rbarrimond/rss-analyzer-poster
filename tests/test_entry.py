@@ -1,3 +1,12 @@
+"""
+Test cases for the Entry class.
+This module contains unit tests for the Entry class, which is part of the entities.entry module.
+The tests cover various functionalities of the Entry class, including validation, content fetching,
+content saving, and entry management.
+"""
+# pylint: disable=missing-docstring
+# pylint: disable=W0212
+
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
