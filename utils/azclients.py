@@ -23,11 +23,12 @@ AzureClientFactory Methods:
 This module follows Azure best practices for authentication and client creation.
 """
 
-import os
-import threading
-from typing import Any, Dict
 import base64
 import json
+import os
+import threading
+from functools import lru_cache
+from typing import Any, Dict
 
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.exceptions import ClientAuthenticationError
@@ -38,12 +39,11 @@ from azure.storage.queue import QueueServiceClient
 from msgraph import GraphServiceClient
 from O365 import Account
 
-from utils.decorators import (log_and_raise_error, log_and_return_default, log_execution_time,
-                              trace_class)
+from utils.decorators import (log_and_raise_error)
 from utils.logger import LoggerFactory
-from functools import lru_cache
 
 logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
+
 
 class AzureClientFactory:
     """
@@ -90,7 +90,8 @@ class AzureClientFactory:
             account_url = os.getenv("AZURE_STORAGEACCOUNT_BLOBENDPOINT")
             if not account_url:
                 raise ValueError("Missing Azure Blob Storage endpoint URL.")
-            self._blob_service_client = BlobServiceClient(account_url, credential=DefaultAzureCredential())
+            self._blob_service_client = BlobServiceClient(
+                account_url, credential=DefaultAzureCredential())
             logger.info("✅ BlobServiceClient created successfully.")
         return self._blob_service_client
 
@@ -105,7 +106,8 @@ class AzureClientFactory:
             account_url = os.getenv("AZURE_STORAGEACCOUNT_TABLEENDPOINT")
             if not account_url:
                 raise ValueError("Missing Azure Table Storage endpoint URL.")
-            self._table_service_client = TableServiceClient(account_url, credential=DefaultAzureCredential())
+            self._table_service_client = TableServiceClient(
+                account_url, credential=DefaultAzureCredential())
             logger.info("✅ TableServiceClient created successfully.")
         return self._table_service_client
 
@@ -120,7 +122,8 @@ class AzureClientFactory:
             queue_endpoint = os.getenv("AZURE_STORAGEACCOUNT_QUEUEENDPOINT")
             if not queue_endpoint:
                 raise ValueError("Missing Azure Queue Storage endpoint URL.")
-            self._queue_service_client = QueueServiceClient(queue_endpoint, credential=DefaultAzureCredential())
+            self._queue_service_client = QueueServiceClient(
+                queue_endpoint, credential=DefaultAzureCredential())
             logger.info("✅ QueueServiceClient created successfully.")
         return self._queue_service_client
 
@@ -149,7 +152,8 @@ class AzureClientFactory:
                 tenant_id=os.getenv("RSSAP_TENANT_ID")
             )
             if not self._o365_account.authenticate():
-                raise ClientAuthenticationError("O365 Account authentication failed.")
+                raise ClientAuthenticationError(
+                    "O365 Account authentication failed.")
             logger.info("✅ O365 Account authenticated successfully.")
         return self._o365_account
 
@@ -172,12 +176,14 @@ class AzureClientFactory:
             for model, _ in models.items():
                 azure_deployment = os.getenv(model)
                 if not all([azure_endpoint, azure_deployment]):
-                    raise ValueError(f"Missing Azure OpenAI credentials for model {model}.")
+                    raise ValueError(
+                        f"Missing Azure OpenAI credentials for model {model}.")
                 self._openai_clients[model] = ChatCompletionsClient(
                     endpoint=azure_endpoint,
                     credential=DefaultAzureCredential()
                 )
-                logger.info("✅ Azure OpenAI %s client created successfully.", model)
+                logger.info(
+                    "✅ Azure OpenAI %s client created successfully.", model)
         return self._openai_clients
 
     @log_and_raise_error(message="Failed to download blob content")
@@ -192,15 +198,18 @@ class AzureClientFactory:
         :raises ValueError: If container_name or blob_name is missing.
         """
         if not all([container_name, blob_name]):
-            raise ValueError(f"Container ({container_name}) or blob ({blob_name}) is missing.")
+            raise ValueError(
+                f"Container ({container_name}) or blob ({blob_name}) is missing.")
 
         if blob_name in self.blob_service_client.get_container_client(container_name).list_blob_names():
-            blob_client = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+            blob_client = self.blob_service_client.get_blob_client(
+                container=container_name, blob=blob_name)
             blob_properties = blob_client.get_blob_properties()
             content_type = blob_properties['content_settings']['content_type']
 
             content = blob_client.download_blob().readall()
-            logger.debug("Blob downloaded %d bytes successfully: container=%s, blob=%s", len(content), container_name, blob_name)
+            logger.debug("Blob downloaded %d bytes successfully: container=%s, blob=%s", len(
+                content), container_name, blob_name)
 
             if content_type.startswith('text/') or content_type in ['application/json', 'application/xml',
                                                                     'application/x-yaml', 'application/xhtml+xml']:
@@ -208,7 +217,8 @@ class AzureClientFactory:
             else:
                 return content
         else:
-            logger.warning("Blob not found: container=%s, blob=%s", container_name, blob_name)
+            logger.warning("Blob not found: container=%s, blob=%s",
+                           container_name, blob_name)
             return None
 
     @log_and_raise_error(message="Failed to upload blob content")
@@ -227,11 +237,13 @@ class AzureClientFactory:
         :raises ValueError: If container_name, blob_name, or content is missing.
         """
         if not all([container_name, blob_name, content]):
-            raise ValueError(f"Container ({container_name}), blob ({blob_name}), or content is missing.")
-        
+            raise ValueError(
+                f"Container ({container_name}), blob ({blob_name}), or content is missing.")
+
         result = self.blob_service_client.get_blob_client(container=container_name,
                                                           blob=blob_name).upload_blob(content, overwrite=True)
-        logger.debug("Blob uploaded to container=%s, blob=%s with result: %s", container_name, blob_name, result)
+        logger.debug("Blob uploaded to container=%s, blob=%s with result: %s",
+                     container_name, blob_name, result)
 
         return result
 
@@ -248,10 +260,13 @@ class AzureClientFactory:
         :raises ValueError: If container_name or blob_name is missing.
         """
         if not all([container_name, blob_name]):
-            raise ValueError(f"Container ({container_name}) or blob ({blob_name}) is missing.")
-        
-        result = self.blob_service_client.get_blob_client(container=container_name, blob=blob_name).delete_blob()
-        logger.debug("Blob deleted from container=%s, blob=%s with result: %s", container_name, blob_name, result)
+            raise ValueError(
+                f"Container ({container_name}) or blob ({blob_name}) is missing.")
+
+        result = self.blob_service_client.get_blob_client(
+            container=container_name, blob=blob_name).delete_blob()
+        logger.debug("Blob deleted from container=%s, blob=%s with result: %s",
+                     container_name, blob_name, result)
 
     @log_and_raise_error(message="Failed to upsert entity in table")
     def table_upsert_entity(self, table_name: str, entity: dict) -> dict:
@@ -272,10 +287,11 @@ class AzureClientFactory:
 
         table_client = self.table_service_client.get_table_client(table_name)
         result = table_client.upsert_entity(entity)
-        logger.debug("Entity table=%s, entity=%s upserted with result %s", table_name, entity, result)
-        
+        logger.debug("Entity table=%s, entity=%s upserted with result %s",
+                     table_name, entity, result)
+
         return result
-    
+
     @log_and_raise_error(message="Failed to delete entity from table")
     def table_delete_entity(self, table_name: str, entity: dict) -> None:
         """
@@ -293,8 +309,9 @@ class AzureClientFactory:
 
         table_client = self.table_service_client.get_table_client(table_name)
         result = table_client.delete_entity(entity)
-        logger.debug("Entity table=%s, entity=%s deleted with result %s", table_name, entity, result)
-        
+        logger.debug("Entity table=%s, entity=%s deleted with result %s",
+                     table_name, entity, result)
+
         return result
 
     @log_and_raise_error(message="Failed to send payload to queue")
@@ -309,13 +326,15 @@ class AzureClientFactory:
         :param payload: The dictionary payload to encode and send as a message.
         :raises ValueError: If the queue client cannot be created or the queue name is invalid.
         """
-        queue_client: QueueServiceClient = self.queue_service_client.get_queue_client(queue_name)
+        queue_client: QueueServiceClient = self.queue_service_client.get_queue_client(
+            queue_name)
 
         # Encode the payload as a base64 string to ensure it is safely transmitted over the queue.
         # Azure Storage Queues expect messages to be UTF-8 encoded strings with a maximum size of 64 KB.
         # By encoding the payload as base64, we ensure that any special characters or binary data
         # in the JSON payload are safely converted into a string format that can be transmitted.
-        encoded_payload = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
+        encoded_payload = base64.b64encode(
+            json.dumps(payload).encode('utf-8')).decode('utf-8')
         message = queue_client.send_message(encoded_payload)
 
         logger.debug("Payload sent to queue: %s", payload)
