@@ -1,3 +1,8 @@
+"""Unit tests for the decorators in utils.decorators module.
+"""
+# pylint: disable=C
+# pylint: disable=W0212
+
 import logging
 import threading
 from unittest import mock
@@ -9,7 +14,6 @@ from utils.decorators import (log_and_ignore_error, log_and_raise_error,
                               log_and_return_default, log_execution_time,
                               retry_on_failure, trace_class, trace_method, _log_once_tracker)
 
-# pylint: disable=W0212
 
 # Mock logger for testing
 mock_logger = MagicMock()
@@ -102,6 +106,7 @@ class TestLogAndReturnDefault:
 
 @patch("time.perf_counter", side_effect=[1, 2])  # Mock time to simulate 1 second duration
 def test_log_execution_time(mock_time):
+    _ = mock_time
     @log_execution_time(logger=mock_logger)
     def sample_function(x, y):
         return x + y

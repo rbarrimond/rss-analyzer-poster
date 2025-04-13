@@ -28,9 +28,14 @@ import threading
 
 from utils.logger import LoggerFactory
 
+# pylint: disable=broad-exception-caught,broad-exception-raised
+
 # Thread-safe set for tracking logged exceptions
+
+
 class LogOnceTracker:
     """Thread-safe tracker for logging messages only once."""
+
     def __init__(self):
         self._lock = threading.Lock()
         self._logged_exceptions = set()
@@ -42,12 +47,15 @@ class LogOnceTracker:
                 logger.log(level, message, *args)
                 self._logged_exceptions.add(message)
 
+
 # Create a shared instance of LogOnceTracker
 _log_once_tracker = LogOnceTracker()
+
 
 def _log_once(logger: logging.Logger, level: int, message: str, *args: Any) -> None:
     """Wrapper around LogOnceTracker to maintain the same interface."""
     _log_once_tracker.log_once(logger, level, message, *args)
+
 
 def _is_dunder(func: Callable[..., Any]) -> bool:
     """Check if a function is a dunder method."""
@@ -57,9 +65,11 @@ def _is_dunder(func: Callable[..., Any]) -> bool:
 # Error Handling Decorators
 # ------------------------------
 
+
 def log_and_raise_error(
     message: str = "An unexpected error occurred.",
-    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
+    logger: logging.Logger = LoggerFactory.get_logger(
+        __name__, handler_level=logging.ERROR),
     exception_class: Type[Exception] = Exception,
     log_level: int = logging.ERROR
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -67,7 +77,8 @@ def log_and_raise_error(
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            logger.debug("Applying log_and_raise_error to function: %s", func.__name__)
+            logger.debug(
+                "Applying log_and_raise_error to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
@@ -75,21 +86,25 @@ def log_and_raise_error(
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
                 _log_once(logger, log_level, error_message)
-                logger.error("Raising exception %s for function %s", exception_class.__name__, func.__name__)
+                logger.error("Raising exception %s for function %s",
+                             exception_class.__name__, func.__name__)
                 raise exception_class(message) from e
         return wrapper
     return decorator
 
+
 def log_and_ignore_error(
     message: str = "An unexpected error occurred.",
-    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
+    logger: logging.Logger = LoggerFactory.get_logger(
+        __name__, handler_level=logging.ERROR),
     log_level: int = logging.ERROR
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and ignore it."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            logger.debug("Applying log_and_ignore_error to function: %s", func.__name__)
+            logger.debug(
+                "Applying log_and_ignore_error to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
@@ -97,22 +112,26 @@ def log_and_ignore_error(
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
                 _log_once(logger, log_level, error_message)
-                logger.warning("Ignoring exception in function %s", func.__name__)
+                logger.warning(
+                    "Ignoring exception in function %s", func.__name__)
                 return None
         return wrapper
     return decorator
 
+
 def log_and_return_default(
     default_value: Any,
     message: str = "An unexpected error occurred.",
-    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.ERROR),
+    logger: logging.Logger = LoggerFactory.get_logger(
+        __name__, handler_level=logging.ERROR),
     log_level: int = logging.ERROR
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Log an error and return a default value."""
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            logger.debug("Applying log_and_return_default to function: %s", func.__name__)
+            logger.debug(
+                "Applying log_and_return_default to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             try:
@@ -120,7 +139,8 @@ def log_and_return_default(
             except Exception as e:
                 error_message = f"{message}: [{type(e).__name__}] {e} in {func.__name__} with args: {args}, kwargs: {kwargs}"
                 _log_once(logger, log_level, error_message)
-                logger.info("Returning default value for function %s", func.__name__)
+                logger.info(
+                    "Returning default value for function %s", func.__name__)
                 return default_value
         return wrapper
     return decorator
@@ -129,8 +149,10 @@ def log_and_return_default(
 # Performance Decorators
 # ------------------------------
 
+
 def log_execution_time(
-    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG),
+    logger: logging.Logger = LoggerFactory.get_logger(
+        __name__, handler_level=logging.DEBUG),
     log_level: int = logging.DEBUG
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
@@ -165,10 +187,12 @@ def log_execution_time(
             if _is_dunder(func):
                 return func(*args, **kwargs)
             start = time.perf_counter()
-            logger.log(log_level, "Starting %s with args: %s, kwargs: %s", func.__name__, args, kwargs)
+            logger.log(log_level, "Starting %s with args: %s, kwargs: %s",
+                       func.__name__, args, kwargs)
             result = func(*args, **kwargs)
             duration = time.perf_counter() - start
-            logger.log(log_level, "Finished %s in %.4f seconds", func.__name__, duration)
+            logger.log(log_level, "Finished %s in %.4f seconds",
+                       func.__name__, duration)
             return result
         return wrapper
     return decorator
@@ -177,8 +201,10 @@ def log_execution_time(
 # Retry Decorators
 # ------------------------------
 
+
 def retry_on_failure(
-    logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG),
+    logger: logging.Logger = LoggerFactory.get_logger(
+        __name__, handler_level=logging.DEBUG),
     retries: int = 3,
     delay: int = 1000,
     log_level: int = logging.DEBUG,
@@ -188,7 +214,8 @@ def retry_on_failure(
     def decorator(func: Callable[..., Any]) -> Callable[[Any], Any]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            logger.debug("Applying retry_on_failure to function: %s", func.__name__)
+            logger.debug(
+                "Applying retry_on_failure to function: %s", func.__name__)
             if _is_dunder(func):
                 return func(*args, **kwargs)
             attempt = 0
@@ -196,15 +223,19 @@ def retry_on_failure(
             while attempt <= retries:
                 try:
                     if attempt > 0:
-                        logger.log(log_level, "Retry attempt %d for function %s", attempt, func.__name__)
+                        logger.log(
+                            log_level, "Retry attempt %d for function %s", attempt, func.__name__)
                     return func(*args, **kwargs)
                 except Exception as e:
-                    logger.error("Exception on attempt %d for function %s: %s", attempt, func.__name__, e)
+                    logger.error(
+                        "Exception on attempt %d for function %s: %s", attempt, func.__name__, e)
                     attempt += 1
                     if attempt > retries:
-                        logger.error("Max retries reached for function %s", func.__name__)
+                        logger.error(
+                            "Max retries reached for function %s", func.__name__)
                         raise
-                    logger.debug("Retrying function %s after %d ms", func.__name__, current_delay)
+                    logger.debug("Retrying function %s after %d ms",
+                                 func.__name__, current_delay)
                     time.sleep(current_delay / 1000.0)
                     current_delay *= backoff_factor
         return wrapper
@@ -213,6 +244,7 @@ def retry_on_failure(
 # ------------------------------
 # Tracing Decorators
 # ------------------------------
+
 
 def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)):
     """Trace the execution of a method."""
@@ -226,10 +258,12 @@ def trace_method(logger: logging.Logger = LoggerFactory.get_logger(__name__, han
             start = time.perf_counter()
             result = func(*args, **kwargs)
             duration = time.perf_counter() - start
-            logger.debug(f"{method_name} has finished in {duration:.4f} seconds.")
+            logger.debug(
+                "%s has finished in %.4f seconds.", method_name, duration)
             return result
         return wrapper
     return decorator
+
 
 def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, handler_level=logging.DEBUG)) -> Callable[[Any], Any]:
     """Apply trace_method to all non-dunder methods of a class."""
@@ -238,19 +272,27 @@ def trace_class(logger: logging.Logger = LoggerFactory.get_logger(__name__, hand
             if callable(attr) and not attr_name.startswith("__"):
                 # Wrap the method with trace_method, preserving existing decorators
                 original_method = attr
+
                 @functools.wraps(original_method)
-                def wrapped_method(*args, **kwargs):
-                    logger.debug(f"Entering {cls.__name__}.{attr_name} with args: {args}, kwargs: {kwargs}")
-                    result = original_method(*args, **kwargs)
-                    logger.debug(f"Exiting {cls.__name__}.{attr_name} with result: {result}")
-                    return result
-                setattr(cls, attr_name, wrapped_method)
+                def make_wrapped_method(attr_name, original_method):
+                    @functools.wraps(original_method)
+                    def wrapped_method(*args, **kwargs):
+                        logger.debug(
+                            "Entering %s.%s with args: %s, kwargs: %s", cls.__name__, attr_name, args, kwargs)
+                        result = original_method(*args, **kwargs)
+                        logger.debug(
+                            "Exiting %s.%s with result: %s", cls.__name__, attr_name, result)
+                        return result
+                    return wrapped_method
+
+                setattr(cls, attr_name, make_wrapped_method(attr_name, original_method))
         return cls
     return decorator
 
 # ------------------------------
 # Cleanup Decorators
 # ------------------------------
+
 
 def ensure_cleanup(cleanup_func: Callable[..., None]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
@@ -271,5 +313,3 @@ def ensure_cleanup(cleanup_func: Callable[..., None]) -> Callable[[Callable[...,
                 cleanup_func(*args, **kwargs)
         return wrapper
     return decorator
-
-
