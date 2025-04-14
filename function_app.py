@@ -42,7 +42,8 @@ def enqueue_rss_feeds(myTimer: func.TimerRequest) -> None:
     """
     logger.info('RSS Ingestion Service triggered.')
 
-    _ = myTimer  # This is a placeholder for any future processing of the timer details.
+    # This is a placeholder for any future processing of the timer details.
+    _ = myTimer
     # Currently, it just logs the timer details but does not use them.
 
     RssIngestionService().enqueue_feeds()
@@ -114,15 +115,15 @@ def ingest_queued_feed(msg: QueueMessage) -> None:
     """
     Queue trigger function that processes messages from the RSS entry queue.
     Extracts the feed URL from the queue message and calls RssIngestionService.ingest_feed.
-    
+
     Parameters:
         msg (func.QueueMessage): The triggered queue message.
-        
+
     Returns:
         None
     """
     logger.info("Feed ingestion triggered by message ID %s.", msg.id)
-    
+
     payload = _extract_json_from_queue_msg(msg)
     feed_url = payload.get("feed", {}).get("url")
     payload_status = payload.get("envelope", {}).get("status") == "enqueued"
@@ -133,14 +134,14 @@ def ingest_queued_feed(msg: QueueMessage) -> None:
         if not payload:
             logger.warning("Invalid message payload. msg ID %s", msg.id)
         if not feed_url:
-            logger.warning("Missing feed URL in message payload. msg=%s", msg.id)
+            logger.warning(
+                "Missing feed URL in message payload. msg=%s", msg.id)
     else:
         feed_name = payload.get("feed", {}).get("name")
         if RssIngestionService().ingest_feed(feed_url):
             logger.info("Feed %s ingestion succeded.", feed_name)
         else:
             logger.warning("Feed %s ingestion failed.", feed_name)
-    
 
 
 @log_and_return_default(default_value={}, message="Failed to extract JSON from request.")
@@ -161,10 +162,10 @@ def _extract_json_from_request_body(req: HttpRequest) -> dict:
 def _extract_json_from_queue_msg(msg: func.QueueMessage) -> dict:
     """
     Helper function to extract JSON from a queue message's body.
-    
+
     Parameters:
         msg (func.QueueMessage): The queue message to parse.
-        
+
     Returns:
         dict: The parsed JSON content.
     """

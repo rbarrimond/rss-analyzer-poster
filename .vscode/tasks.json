@@ -7,7 +7,13 @@
 			"command": "host start",
 			"problemMatcher": "$func-python-watch",
 			"isBackground": true,
-			"dependsOn": "pip install (functions)"
+			"dependsOn": "pip install (functions)",
+			"options": {
+				"shell": {
+					"executable": "/bin/bash",
+					"args": ["-l", "-c"]
+				}
+			}
 		},
 		{
 			"type": "func",
@@ -15,7 +21,13 @@
 			"command": "host start --verbose true",
 			"problemMatcher": "$func-python-watch",
 			"isBackground": true,
-			"dependsOn": "pip install (functions)"
+			"dependsOn": "pip install (functions)",
+			"options": {
+				"shell": {
+					"executable": "/bin/bash",
+					"args": ["-l", "-c"]
+				}
+			}
 		},
 		{
 			"label": "pip install (functions)",

@@ -7,7 +7,7 @@ AI-based enhancements like summaries, readability scores, engagement data, and
 embeddings.
 """
 
-from functools import cached_property
+from functools import cached_property, lru_cache
 import io
 import os
 import threading
@@ -71,7 +71,7 @@ class Entry(BaseModel):
             "Tags",
             "Summary",
             "Source",
-            # "Content"        # Blob-backed field
+            "Content"        # Blob-backed field
         ]
     )
 
@@ -216,7 +216,8 @@ class Entry(BaseModel):
         """
         return xxhash.xxh64(self.id).hexdigest()
 
-    # @computed_field(alias="Content", description="Cached content of the entry.")
+    @computed_field(alias="Content",
+                    description="Content of the entry, retrieved from Azure Blob Storage or via HTTP if not cached.")
     @cached_property
     def content(self) -> Optional[str]:
         """
@@ -241,12 +242,12 @@ class Entry(BaseModel):
         Returns:
             Optional[str]: The fetched content, or NULL_CONTENT if not available.
         """
-        if getattr(self._recursion_guard, "active", False):
-            logger.error("Recursion detected in fetch_content for entry %s/%s.",
-                         self.partition_key, self.row_key)
-            return NULL_CONTENT  # Prevent recursion
+        # if getattr(self._recursion_guard, "active", False):
+        #     logger.warning("Recursion detected in fetch_content for entry %s/%s.",
+        #                  self.partition_key, self.row_key)
+        #     return NULL_CONTENT  # Prevent recursion
 
-        self._recursion_guard.active = True  # Set the recursion guard
+        # self._recursion_guard.active = True  # Set the recursion guard
         # Fetch content from Blob Storage
         content = self._fetch_content_from_blob()
         if content:
@@ -277,12 +278,12 @@ class Entry(BaseModel):
 
         This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
         """
-        if getattr(self._recursion_guard, "active", False):
-            logger.error("Recursion detected in _fetch_content_from_http for entry %s/%s.",
-                         self.partition_key, self.row_key)
-            return None  # Prevent recursion
+        # if getattr(self._recursion_guard, "active", False):
+        #     logger.warning("Recursion detected in _fetch_content_from_http for entry %s/%s.",
+        #                  self.partition_key, self.row_key)
+        #     return None  # Prevent recursion
 
-        self._recursion_guard.active = True  # Set the recursion guard
+        # self._recursion_guard.active = True  # Set the recursion guard
         with self._http_fetch_lock:  # Use the private thread lock
             logger.debug("Retrieving content from HTTP link: %s", self.link)
 
@@ -526,7 +527,7 @@ class AIEnrichment(BaseModel):
 
         If embeddings are provided, they are persisted to Azure Blob Storage.
         """
-        embeddings = save_embeddings or self.embeddings
+        embeddings = save_embeddings if save_embeddings is not None else self.embeddings
         if embeddings is None:
             raise ValueError("Embeddings are not available.")
 
