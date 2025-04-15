@@ -6,7 +6,8 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": true
         },
         {
             "name": "Attach to Python Functions",
@@ -16,7 +17,8 @@
                 "host": "localhost",
                 "port": 9091
             },
-            "preLaunchTask": "func: host start"
+            "preLaunchTask": "func: host start",
+            "justMyCode": true
         },
         {
             "name": "Attach to Python Functions (Verbose)",
@@ -26,21 +28,24 @@
                 "host": "localhost",
                 "port": 9091
             },
-            "preLaunchTask": "func: host start verbose"
+            "preLaunchTask": "func: host start verbose",
+            "justMyCode": true
         },
         {
             "name": "Python: Current File (Integrated Terminal)",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "justMyCode": true
         },
         {
             "name": "Python: Current File (External Terminal)",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
-            "console": "externalTerminal"
+            "console": "externalTerminal",
+            "justMyCode": true
         }
     ]
 }
