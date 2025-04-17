@@ -4,6 +4,7 @@ import threading
 
 class RecursionGuard:
     """Context manager to prevent recursion in a thread-safe manner."""
+
     def __init__(self, guard: threading.local):
         self.guard = guard
 
