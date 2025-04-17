@@ -254,7 +254,7 @@ class Entry(BaseModel, MarkdownBlobMixin):
     def blob_container(self) -> str:
         return RSS_ENTRY_CONTAINER_NAME
 
-    @property
+    @cached_property
     def blob_path(self) -> str:
         return f"{self.partition_key}/{self.row_key}_content.md"
 
