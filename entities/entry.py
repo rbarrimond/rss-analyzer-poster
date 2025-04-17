@@ -29,6 +29,7 @@ from pydantic import (
 )
 
 from utils.azclients import AzureClientFactory as acf
+from utils.context import RecursionGuard
 from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure, ensure_cleanup
 from utils.logger import LoggerFactory
 from utils.parser import normalize_html, html_to_markdown, parse_date, truncate_markdown
@@ -157,21 +158,6 @@ class NumpyBlobMixin(BlobContentMixin):
         np.save(buffer, content)
         buffer.seek(0)
         super().save_blob(buffer.read())
-
-
-class RecursionGuard:
-    """Context manager to prevent recursion in a thread-safe manner."""
-    def __init__(self, guard: threading.local):
-        self.guard = guard
-
-    def __enter__(self):
-        if getattr(self.guard, "active", False):
-            return False  # Recursion detected
-        self.guard.active = True
-        return True
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.guard.active = False
 
 
 class Entry(BaseModel, MarkdownBlobMixin):
