@@ -159,6 +159,21 @@ class NumpyBlobMixin(BlobContentMixin):
         super().save_blob(buffer.read())
 
 
+class RecursionGuard:
+    """Context manager to prevent recursion in a thread-safe manner."""
+    def __init__(self, guard: threading.local):
+        self.guard = guard
+
+    def __enter__(self):
+        if getattr(self.guard, "active", False):
+            return False  # Recursion detected
+        self.guard.active = True
+        return True
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.guard.active = False
+
+
 class Entry(BaseModel, MarkdownBlobMixin):
     """Represents an RSS entry entity.
 
@@ -261,6 +276,7 @@ class Entry(BaseModel, MarkdownBlobMixin):
     # Private attributes
     _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
     _http_fetch_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    
     # Validators
     @field_validator("summary", mode="before")
     @classmethod
@@ -418,7 +434,6 @@ class Entry(BaseModel, MarkdownBlobMixin):
         )
 
     @log_execution_time
-    @ensure_cleanup(lambda self: setattr(self._recursion_guard, "active", False))
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
     def _fetch_content_from_http(self) -> Optional[str]:
         """
@@ -429,28 +444,34 @@ class Entry(BaseModel, MarkdownBlobMixin):
 
         This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
         """
-        if getattr(self._recursion_guard, "active", False):
-            logger.warning("Recursion detected in _fetch_content_from_http for entry %s/%s.",
-                         self.partition_key, self.row_key)
-            return None  # Prevent recursion
-
-        self._recursion_guard.active = True  # Set the recursion guard
-        with self._http_fetch_lock:  # Use the private thread lock
-            logger.debug("Retrieving content from HTTP link: %s", self.link)
-
-            response = requests.get(self.link, timeout=10)
-            if response.status_code == 200:
-                logger.debug("Content retrieved successfully from HTTP link.")
-                norm_html = normalize_html(response.text)
-                markdown = html_to_markdown(norm_html)
-                logger.debug(
-                    "Content converted to markdown. Length %d characters.", len(markdown))
-                return markdown
-            else:
+        with RecursionGuard(self._recursion_guard) as allowed:
+            if not allowed:
                 logger.warning(
-                    "Failed to retrieve content from HTTP link. Status code: %d", response.status_code)
-                logger.debug("Response content: %s", response.text)
-                response.raise_for_status()
+                    "Recursion detected in _fetch_content_from_http for entry %s/%s.",
+                    self.partition_key,
+                    self.row_key,
+                )
+                return None  # Prevent recursion
+
+            with self._http_fetch_lock:  # Use the private thread lock
+                logger.debug("Retrieving content from HTTP link: %s", self.link)
+
+                response = requests.get(self.link, timeout=10)
+                if response.status_code == 200:
+                    logger.debug("Content retrieved successfully from HTTP link.")
+                    norm_html = normalize_html(response.text)
+                    markdown = html_to_markdown(norm_html)
+                    logger.debug(
+                        "Content converted to markdown. Length %d characters.", len(markdown)
+                    )
+                    return markdown
+                else:
+                    logger.warning(
+                        "Failed to retrieve content from HTTP link. Status code: %d",
+                        response.status_code,
+                    )
+                    logger.debug("Response content: %s", response.text)
+                    response.raise_for_status()
 
     @field_serializer("content", mode="wrap")
     def serialize_content(self, field, value, info):
