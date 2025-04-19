@@ -29,10 +29,10 @@ from pydantic import (
 )
 
 from utils.azclients import AzureClientFactory as acf
-from utils.context import RecursionGuard
 from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure, ensure_cleanup
 from utils.logger import LoggerFactory
 from utils.parser import normalize_html, html_to_markdown, parse_date, truncate_markdown
+from utils.context import RecursionGuard
 
 MAX_SUMMARY_SENTENCES = 20
 MAX_SUMMARY_CHARACTERS = 2000
@@ -260,13 +260,36 @@ class Entry(BaseModel, MarkdownBlobMixin):
         return f"{self.partition_key}/{self.row_key}_content.md"
 
     # Private attributes
-    _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
-    _http_fetch_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
-    
+    _recursion_guard: threading.local = PrivateAttr(
+        default_factory=threading.local)
+    _http_fetch_lock: threading.Lock = PrivateAttr(
+        default_factory=threading.Lock)
+
     # Validators
+    @field_validator("tags", mode="before")
+    @classmethod
+    def validate_tags(cls, v: Any) -> list[Optional[str]]:
+        """
+        Ensure that the tags are a list of strings.
+
+        Args:
+            v (Any): The value of the 'tags' field.
+
+        Returns:
+            list[str]: The validated tags as a list of strings.
+        """
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, list[dict]):
+            return [tag["term"] for tag in v]
+        raise ValueError(
+            "Tags must be a list of strings or a list of dictionaries with 'term' keys.")
+
     @field_validator("summary", mode="before")
     @classmethod
-    def clean_and_truncate_summary(cls, v):
+    def clean_and_truncate_summary(cls, v: str) -> Optional[str]:
         """
         Clean and truncate the summary while preserving HTML structure.
 
@@ -440,15 +463,18 @@ class Entry(BaseModel, MarkdownBlobMixin):
                 return None  # Prevent recursion
 
             with self._http_fetch_lock:  # Use the private thread lock
-                logger.debug("Retrieving content from HTTP link: %s", self.link)
+                logger.debug(
+                    "Retrieving content from HTTP link: %s", self.link)
 
                 response = requests.get(self.link, timeout=10)
                 if response.status_code == 200:
-                    logger.debug("Content retrieved successfully from HTTP link.")
+                    logger.debug(
+                        "Content retrieved successfully from HTTP link.")
                     norm_html = normalize_html(response.text)
                     markdown = html_to_markdown(norm_html)
                     logger.debug(
-                        "Content converted to markdown. Length %d characters.", len(markdown)
+                        "Content converted to markdown. Length %d characters.", len(
+                            markdown)
                     )
                     return markdown
                 else:
