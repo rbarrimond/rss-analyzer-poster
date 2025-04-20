@@ -495,7 +495,7 @@ class AIEnrichment(BaseModel, NumpyBlobMixin):
     @ensure_cleanup(lambda self: setattr(self._recursion_guard, "active", False))
     def _fetch_embeddings_from_blob(self) -> Optional[np.ndarray]:
         if getattr(self._recursion_guard, "active", False):
-            logger.error(
+            logger.warning(
                 "Recursion detected in _fetch_embeddings_from_blob for AI enrichment %s/%s.",
                 self.partition_key,
                 self.row_key,
