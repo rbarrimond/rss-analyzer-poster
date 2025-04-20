@@ -517,11 +517,11 @@ class AIEnrichment(BaseModel, NumpyBlobMixin):
         if embeddings is None:
             raise ValueError("Embeddings are not available.")
 
-        self.save_blob(embeddings)
         acf.get_instance().table_upsert_entity(
             table_name=RSS_ENTRY_TABLE_NAME,
             entity=self.model_dump(mode="json", by_alias=True),
         )
+        self.save_blob(embeddings)
         logger.debug("AI enrichment %s/%s saved.",
                      self.partition_key, self.row_key)
 
