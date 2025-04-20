@@ -24,12 +24,14 @@ This module follows Azure best practices for authentication and client creation.
 """
 
 import base64
+import io
 import json
 import os
 import threading
 from functools import lru_cache
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
+import numpy as np
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.exceptions import ClientAuthenticationError
 from azure.data.tables import TableServiceClient
@@ -39,10 +41,13 @@ from azure.storage.queue import QueueServiceClient
 from msgraph import GraphServiceClient
 from O365 import Account
 
-from utils.decorators import (log_and_raise_error)
+from utils.decorators import log_and_raise_error
 from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__, os.getenv("LOG_LEVEL", "INFO"))
+
+# Define a module-level constant for the sentinel value
+NULL_CONTENT = "\ue000"  # Unicode private use character for missing content
 
 
 class AzureClientFactory:
@@ -339,3 +344,93 @@ class AzureClientFactory:
 
         logger.debug("Payload sent to queue: %s", payload)
         logger.debug("Queue message sent: %s", message)
+
+
+class BlobContentMixin:
+    """Mixin class for handling Azure Blob Storage content."""
+    _content_cache: Optional[Any] = None
+    _blob_lock: threading.Lock = threading.Lock()
+
+    @property
+    def blob_container(self) -> str:
+        """The name of the Azure Blob Storage container."""
+        raise NotImplementedError("Subclasses must define the blob_container")
+
+    @property
+    def blob_path(self) -> str:
+        """The path to the blob in Azure Blob Storage."""
+        raise NotImplementedError("Subclasses must define the blob_path")
+
+    def load_blob(self) -> Optional[Any]:
+        """
+        Loads the content of the blob from Azure Blob Storage.
+        This method caches the content for subsequent calls to avoid redundant downloads.
+        :return: The content of the blob as bytes or None if not found.
+        """
+        if self._content_cache is not None:
+            return self._content_cache
+
+        with self._blob_lock:
+            logger.debug("Loading blob: %s", self.blob_path)
+            blob = AzureClientFactory.get_instance().download_blob_content(
+                container_name=self.blob_container, blob_name=self.blob_path
+            )
+            self._content_cache = blob or NULL_CONTENT
+            return self._content_cache
+
+    def save_blob(self, content: Any) -> None:
+        """
+        Saves the content to the blob in Azure Blob Storage.
+        :param content: The content to save, which can be a string or bytes.
+        :raises ValueError: If content is None or empty.
+        """
+        if not content:
+            raise ValueError("No content provided to save.")
+        AzureClientFactory.get_instance().upload_blob_content(
+            container_name=self.blob_container,
+            blob_name=self.blob_path,
+            content=content,
+        )
+        logger.debug("Saved blob to %s/%s", self.blob_container, self.blob_path)
+
+    def delete_blob(self) -> None:
+        """
+        Deletes the blob from Azure Blob Storage.
+        This method removes the blob from the specified container.
+        """
+        AzureClientFactory.get_instance().delete_blob(
+            container_name=self.blob_container, blob_name=self.blob_path
+        )
+        logger.debug("Deleted blob %s/%s", self.blob_container, self.blob_path)
+
+class MarkdownBlobMixin(BlobContentMixin):
+    """Specialized mixin for handling Markdown text blobs."""
+    # pylint: disable=abstract-method
+    def load_blob(self) -> Optional[str]:
+        blob = super().load_blob()
+        if isinstance(blob, bytes):
+            return blob.decode("utf-8")
+        return blob
+
+    def save_blob(self, content: str) -> None:
+        if not isinstance(content, str):
+            raise ValueError("Expected string content for Markdown blob.")
+        super().save_blob(content.encode("utf-8"))
+
+
+class NumpyBlobMixin(BlobContentMixin):
+    """Specialized mixin for handling NumPy .npy blobs."""
+    # pylint: disable=abstract-method
+    def load_blob(self) -> Optional[np.ndarray]:
+        blob = super().load_blob()
+        if not blob or blob == NULL_CONTENT:
+            return None
+        return np.load(io.BytesIO(blob), allow_pickle=True)
+
+    def save_blob(self, content: np.ndarray) -> None:
+        if content is None:
+            raise ValueError("No embeddings provided to save.")
+        buffer = io.BytesIO()
+        np.save(buffer, content)
+        buffer.seek(0)
+        super().save_blob(buffer.read())
