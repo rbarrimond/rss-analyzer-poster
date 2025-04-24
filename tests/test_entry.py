@@ -17,22 +17,23 @@ from pydantic import HttpUrl, ValidationError
 from entities.entry import NULL_CONTENT, Entry  # Ensure 'entities.entry' is the correct module path
 
 
-class TestEntry:
+@pytest.fixture
+def valid_entry_data():
+    return {
+        "PartitionKey": "entry",
+        "Id": "unique-id",
+        "FeedKey": "1234567890abcdef",
+        "Title": "Test Entry",
+        "Link": "https://example.com",
+        "Published": datetime(2023, 1, 1),
+        "Author": "Author Name",
+        "Tags": ["tag1", "tag2"],
+        "Summary": "This is a test summary.",
+        "Source": {"key": "value"}
+    }
 
-    @pytest.fixture
-    def valid_entry_data(self):
-        return {
-            "PartitionKey": "entry",
-            "Id": "unique-id",
-            "FeedKey": "1234567890abcdef",
-            "Title": "Test Entry",
-            "Link": "https://example.com",
-            "Published": datetime(2023, 1, 1),
-            "Author": "Author Name",
-            "Tags": ["tag1", "tag2"],
-            "Summary": "This is a test summary.",
-            "Source": {"key": "value"}
-        }
+
+class TestEntryValidation:
 
     def test_entry_validation_success(self, valid_entry_data):
         entry = Entry(**valid_entry_data)
@@ -50,6 +51,9 @@ class TestEntry:
         valid_entry_data["Tags"] = []  # Updated to match the correct field name
         with pytest.raises(ValidationError):
             Entry(**valid_entry_data)
+
+
+class TestEntryContentFetching:
 
     @patch("entities.entry.acf.get_instance")
     def test_fetch_content_from_blob_success(self, mock_acf, valid_entry_data):
@@ -69,6 +73,15 @@ class TestEntry:
         content = entry._fetch_content_from_http()
         assert "Content" in content
 
+    def test_fetch_content_recursion_guard(self, valid_entry_data):
+        entry = Entry(**valid_entry_data)
+        entry._recursion_guard.active = True
+        content = entry.fetch_content()
+        assert content == NULL_CONTENT
+
+
+class TestEntryContentSaving:
+
     @patch("entities.entry.acf.get_instance")
     def test_save_content_to_blob(self, mock_acf, valid_entry_data):
         mock_acf.return_value.upload_blob_content.return_value = True
@@ -87,6 +100,9 @@ class TestEntry:
         mock_acf.return_value.upload_blob_content.assert_called_once()
         mock_acf.return_value.table_upsert_entity.assert_called_once()
 
+
+class TestEntryDeletion:
+
     @patch("entities.entry.acf.get_instance")
     def test_delete_entry(self, mock_acf, valid_entry_data):
         mock_acf.return_value.delete_blob.return_value = True
@@ -97,13 +113,10 @@ class TestEntry:
         mock_acf.return_value.delete_blob.assert_called_once()
         mock_acf.return_value.table_delete_entity.assert_called_once()
 
+
+class TestEntryCache:
+
     def test_get_cached_content(self, valid_entry_data):
         entry = Entry(**valid_entry_data)
         entry._content_cache = "Cached content"
         assert entry.get_cached_content() == "Cached content"
-
-    def test_fetch_content_recursion_guard(self, valid_entry_data):
-        entry = Entry(**valid_entry_data)
-        entry._recursion_guard.active = True
-        content = entry.fetch_content()
-        assert content == NULL_CONTENT
