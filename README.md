@@ -124,6 +124,21 @@ The `.github/workflows` directory contains the CI/CD pipeline configuration:
 - **ci_pipeline.yml**: Defines the CI pipeline for building, testing, and uploading build artifacts.
 - **cd_pipeline.yml**: Defines the CD pipeline for deploying the application to Azure.
 
+## Tests
+
+The `tests` directory contains unit tests for various components of the application:
+
+- **test_ai_enrichment.py**: Tests for the `AIEnrichmentService` and related AI enrichment functionalities.
+- **test_decorators.py**: Tests for utility decorators used across the application.
+- **test_entry.py**: Tests for the `Entry` entity, including its persistence and content handling logic.
+- **conftest.py**: Contains shared fixtures and configurations for the test suite.
+
+To run the tests, use the following command:
+
+```sh
+pytest tests/
+```
+
 ## Usage
 
 1. **Set up the virtual environment**:
