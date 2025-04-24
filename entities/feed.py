@@ -67,8 +67,6 @@ class Feed(BaseModel):
     )
     link: HttpUrl = Field(
         alias="Link",
-        min_length=1,
-        max_length=500,
         description="URL of the feed. Must be a valid HTTP or HTTPS link."
     )
     language: Optional[str] = Field(
