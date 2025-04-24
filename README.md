@@ -6,7 +6,12 @@ The RSS Analyzer Poster project is designed to analyze RSS feeds, summarize thei
 
 ### Key Components
 
-- **RssIngestionService**: Responsible for processing and analyzing RSS feeds, enriching them with AI, and storing the results in Azure Table Storage.
+- **RssIngestionService**: Responsible for processing and analyzing RSS feeds and storing the results in Azure Table Storage.
+- **AIEnrichmentService**: Provides AI-driven enrichment for RSS feed data, including sentiment analysis, readability scoring, and embedding generation.
+- **Feed**: Represents an RSS feed with metadata such as title, link, language, and publisher. Supports operations like creation, update, and deletion in Azure Table Storage.
+- **Entry**: Represents an RSS feed entry, including properties like title, link, content, and tags. Supports persistence in Azure Table Storage and content caching in Azure Blob Storage.
+- **AIEnrichment**: Represents AI-generated enhancements for RSS entries, including summaries, readability scores, engagement metrics, and embeddings. Supports persistence in Azure Table Storage and Azure Blob Storage.
+- **Post**: Represents a blog post with attributes like title, content, and draft status.
 - **Azure Functions**: Serverless execution of the RSS feed processing.
 - **Terraform**: Infrastructure management.
 - **GitHub Actions**: CI/CD pipeline for automated testing and deployment.
@@ -14,67 +19,102 @@ The RSS Analyzer Poster project is designed to analyze RSS feeds, summarize thei
 ## Repository Structure
 
 ```text
-rss-analyzer-poster/
-├── .github/
-│   └── workflows/
-│       ├── terraform.yml
-│       ├── ci_pipeline.yml
-│       └── cd_pipeline.yml
-├── infra/
-│   ├── appserviceplan.tf
-│   ├── entra.tf
-│   ├── keyvault.tf
-│   ├── main.tf
-│   ├── openai.tf
-│   ├── outputs.tf
-│   ├── providers.tf
-│   ├── storageaccounts.tf
-│   └── variables.tf
-├── samples/
-│   ├── rss_feed_engagement_sample.csv
-│   └── rss_feed_engagement_with_content.csv
-├── utils/
-│   ├── helper.py
-│   └── parser.py
+.
+├── .codetocloud
+│   └── azure.json
 ├── .funcignore
+├── .github
+│   ├── copilot-instructions.md
+│   └── workflows
+│       ├── cd_pipeline.yml
+│       ├── ci_pipeline.yml
+│       └── terraform.yml
 ├── .gitignore
+├── .vscode
+│   ├── extensions.json
+│   ├── launch.json
+│   ├── settings.json
+│   └── tasks.json
 ├── README.md
-├── azure_clients.py
+├── entities
+│   ├── entry.py
+│   ├── feed.py
+│   └── post.py
+├── examples
+│   ├── config.json
+│   ├── rss_feed_engagement_sample.csv
+│   ├── rss_feed_engagement_with_content.csv
+│   ├── sample_list_schema.json
+│   ├── system.md
+│   └── user.md
 ├── function_app.py
 ├── host.json
+├── infra
+│   ├── README.md
+│   ├── appserviceplan.tf
+│   ├── entra.tf
+│   ├── keyvault.tf
+│   ├── main.tf
+│   ├── openai.tf
+│   ├── outputs.tf
+│   ├── providers.tf
+│   ├── servicebus.tf
+│   ├── storageaccount.tf
+│   └── variables.tf
 ├── requirements.txt
-└── rss_ingestion_service.py
+├── services
+│   ├── ai_enrichment.py
+│   └── rss.py
+├── tests
+│   ├── conftest.py
+│   ├── test_ai_enrichment.py
+│   ├── test_decorators.py
+│   └── test_entry.py
+└── utils
+    ├── azclients.py
+    ├── config.py
+    ├── context.py
+    ├── decorators.py
+    ├── helper.py
+    ├── logger.py
+    ├── parser.py
+    └── rss_lists.py
 ```
 
 ## Key Files and Directories
 
 - **function_app.py**: Main entry point for the Azure Function App.
 - **rss_ingestion_service.py**: Contains the logic for processing RSS feeds.
+- **azure_clients.py**: Provides Azure-specific client utilities for interacting with Azure services.
 - **infra/**: Contains Terraform configuration files for provisioning Azure resources.
 - **samples/**: Contains sample data for testing and documentation.
 - **utils/**: Contains utility modules for the application.
+- **examples/**: Contains example system and user messages for testing summarization and scoring.
 - **.github/workflows/**: Contains GitHub Actions workflows for CI/CD.
 
 ## Sample Data
 
-The `samples` directory contains CSV files with sample RSS feed data:
+The `examples` directory contains sample data and schemas for testing and documentation:
 
-- **rss_feed_engagement_with_content.csv**: Contains RSS feed data with full content.
-- **rss_feed_engagement_sample.csv**: Contains RSS feed data with summarized content.
+- **config.json**: Configuration file for RSS feed processing.
+- **sample_list_schema.json**: Schema for validating RSS feed lists.
+- **system.md**: Example system messages for testing summarization and scoring.
+- **user.md**: Example user messages for testing summarization and scoring.
 
 ## Infrastructure
 
 The `infra` directory contains Terraform configuration files for provisioning the necessary Azure resources:
 
-- **main.tf**: Establishes core infrastructure components.
-- **keyvault.tf**: Manages secure storage of sensitive information.
-- **appserviceplan.tf**: Configures the hosting environment for the function app.
-- **entra.tf**: Handles Azure Active Directory (AAD) integration.
-- **providers.tf**: Specifies the necessary providers for resource management.
-- **storageaccounts.tf**: Configures storage solutions for the application.
-- **outputs.tf**: Provides essential information about the deployed resources.
-- **variables.tf**: Defines variables used in the Terraform configuration.
-- **versions.tf**: Specifies the required Terraform version and provider versions.
+- **main.tf**: Establishes core infrastructure components, including resource groups and dependencies.
+- **keyvault.tf**: Configures Azure Key Vault for secure storage of sensitive information, such as secrets and keys.
+- **appserviceplan.tf**: Defines the hosting environment for the Azure Function App using a Linux-based service plan.
+- **entra.tf**: Manages Azure Active Directory (AAD) integration, including application registration and access policies.
+- **providers.tf**: Specifies the required Terraform providers for managing Azure resources.
+- **storageaccount.tf**: Configures Azure Storage Accounts, including blob containers and table storage for RSS feed data.
+- **servicebus.tf**: Sets up Azure Service Bus for managing message queues, such as RSS feed updates and AI enrichment tasks.
+- **openai.tf**: Configures Azure OpenAI resources for AI-driven enrichment tasks.
+- **outputs.tf**: Defines outputs for key resource information, such as connection strings and endpoints.
+- **variables.tf**: Declares variables used across the Terraform configuration files for better reusability and customization.
 
 ## GitHub Actions
 
