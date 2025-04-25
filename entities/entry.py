@@ -28,7 +28,7 @@ from pydantic import (
 )
 
 from utils.azclients import AzureClientFactory as acf
-from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure, ensure_cleanup
+from utils.decorators import log_and_raise_error, log_and_return_default, log_execution_time, retry_on_failure
 from utils.logger import LoggerFactory
 from utils.parser import normalize_html, html_to_markdown, parse_date, truncate_markdown
 from utils.context import RecursionGuard
