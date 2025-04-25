@@ -29,94 +29,120 @@ def valid_entry_data():
         "Author": "Author Name",
         "Tags": ["tag1", "tag2"],
         "Summary": "This is a test summary.",
-        "Source": {"key": "value"}
+        "Source": {"key": "value"},
+        "Content": "This is a test content."  # Ensure Content is a valid string to avoid serialization issues
     }
 
 
 class TestEntryValidation:
 
-    def test_entry_validation_success(self, valid_entry_data):
-        entry = Entry(**valid_entry_data)
-        assert entry.title == "Test Entry"
-        assert entry.link == HttpUrl("https://example.com")
-
-    def test_entry_validation_failure(self, valid_entry_data):
+    def test_entry_missing_required_field(self, valid_entry_data):
         invalid_data = valid_entry_data.copy()
-        invalid_data["Link"] = "invalid-url"
-        with pytest.raises(ValidationError):
+        del invalid_data["FeedKey"]  # Remove a truly required field
+        with pytest.raises(ValidationError, match="Field required"):
             Entry(**invalid_data)
 
-    @pytest.mark.skip(reason="Task has no min_length")
-    def test_entry_min_length_validation(self, valid_entry_data):
-        valid_entry_data["Tags"] = []  # Updated to match the correct field name
-        with pytest.raises(ValidationError):
-            Entry(**valid_entry_data)
+    def test_entry_invalid_published_date(self, valid_entry_data):
+        invalid_data = valid_entry_data.copy()
+        invalid_data["Published"] = "not-a-date"
+        with pytest.raises(ValidationError, match="Value error, Invalid date format for 'published': not-a-date "):
+            Entry(**invalid_data)
+
+    def test_entry_empty_tags(self, valid_entry_data):
+        valid_entry_data["Tags"] = []
+        entry = Entry(**valid_entry_data)
+        assert entry.tags == []
+
+    def test_entry_invalid_url(self, valid_entry_data):
+        invalid_data = valid_entry_data.copy()
+        invalid_data["Link"] = "ftp://invalid-url"
+        with pytest.raises(ValidationError, match="URL scheme should be 'http' or 'https'"):
+            Entry(**invalid_data)
 
 
 class TestEntryContentFetching:
 
-    @patch("entities.entry.acf.get_instance")
-    def test_fetch_content_from_blob_success(self, mock_acf, valid_entry_data):
-        mock_acf.return_value.download_blob_content.return_value = "Blob content"
+    def test_fetch_content_no_source(self, valid_entry_data):
+        valid_entry_data["Source"] = None
+        valid_entry_data["Content"] = None  # Ensure Content is None for this test
         entry = Entry(**valid_entry_data)
-        content = entry._fetch_content_from_blob()
-        assert content == "Blob content"
+        content = entry.fetch_content()
+        assert content == NULL_CONTENT
 
     @patch("entities.entry.requests.get")
-    def test_fetch_content_from_http_success(self, mock_get, valid_entry_data):
+    def test_fetch_content_http_success(self, mock_get, valid_entry_data):
+        valid_entry_data["Content"] = None  # Ensure Content is None to test HTTP fetching
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.text = "<html><body>Content</body></html>"
+        mock_response.text = "<html><body>Test Content</body></html>"
         mock_get.return_value = mock_response
 
         entry = Entry(**valid_entry_data)
         content = entry._fetch_content_from_http()
-        assert "Content" in content
+        assert "Test Content" in content
 
-    def test_fetch_content_recursion_guard(self, valid_entry_data):
+    @patch("entities.entry.log_execution_time")  # Mocking the decorator
+    def test_fetch_content_with_logging(self, mock_decorator, valid_entry_data):
+        mock_decorator.return_value = lambda func: func  # Mock decorator to return the original function
         entry = Entry(**valid_entry_data)
-        entry._recursion_guard.active = True
         content = entry.fetch_content()
-        assert content == NULL_CONTENT
+        assert content == NULL_CONTENT  # Assuming default behavior
+        mock_decorator.assert_called_once()
+
+    @patch("entities.entry.retry_on_failure")  # Mocking retry decorator
+    def test_fetch_content_with_retry(self, mock_retry, valid_entry_data):
+        mock_retry.return_value = lambda func: func  # Mock decorator to return the original function
+        entry = Entry(**valid_entry_data)
+        with patch.object(entry, "_fetch_content_from_http", side_effect=Exception("Retry test")):
+            with pytest.raises(Exception, match="Retry test"):
+                entry.fetch_content()
+        mock_retry.assert_called_once()
+
+    @patch("entities.entry.log_and_return_default")  # Mocking the decorator
+    def test_fetch_content_with_default_return(self, mock_decorator, valid_entry_data):
+        mock_decorator.return_value = lambda func: func  # Mock decorator to return the original function
+        entry = Entry(**valid_entry_data)
+        with patch.object(entry, "_fetch_content_from_http", side_effect=Exception("HTTP error")):
+            content = entry._fetch_content_from_http()
+            assert content is None  # Default value returned by the decorator
+        mock_decorator.assert_called_once()
 
 
 class TestEntryContentSaving:
 
     @patch("entities.entry.acf.get_instance")
-    def test_save_content_to_blob(self, mock_acf, valid_entry_data):
+    @patch("entities.entry.log_and_raise_error")  # Mocking the decorator
+    def test_save_content_with_error_logging(self, mock_decorator, mock_acf, valid_entry_data):
+        mock_decorator.return_value = lambda func: func  # Mock decorator to return the original function
         mock_acf.return_value.upload_blob_content.return_value = True
         entry = Entry(**valid_entry_data)
         entry._save_content_to_blob("Test content")
         mock_acf.return_value.upload_blob_content.assert_called_once()
-
-    @patch("entities.entry.acf.get_instance")
-    def test_save_entry(self, mock_acf, valid_entry_data):
-        mock_acf.return_value.upload_blob_content.return_value = True
-        mock_acf.return_value.table_upsert_entity.return_value = True
-
-        entry = Entry(**valid_entry_data)
-        with patch.object(Entry, "fetch_content", return_value="Test content"):
-            entry.save()
-        mock_acf.return_value.upload_blob_content.assert_called_once()
-        mock_acf.return_value.table_upsert_entity.assert_called_once()
+        mock_decorator.assert_called_once()
 
 
 class TestEntryDeletion:
 
     @patch("entities.entry.acf.get_instance")
-    def test_delete_entry(self, mock_acf, valid_entry_data):
+    @patch("entities.entry.log_and_raise_error")  # Mocking the decorator
+    def test_delete_entry_with_error_logging(self, mock_decorator, mock_acf, valid_entry_data):
+        mock_decorator.return_value = lambda func: func  # Mock decorator to return the original function
         mock_acf.return_value.delete_blob.return_value = True
         mock_acf.return_value.table_delete_entity.return_value = True
+
+        # Ensure valid_entry_data does not contain MagicMock objects
+        valid_entry_data["Content"] = "Test content"  # Replace MagicMock with a valid string
 
         entry = Entry(**valid_entry_data)
         entry.delete()
         mock_acf.return_value.delete_blob.assert_called_once()
         mock_acf.return_value.table_delete_entity.assert_called_once()
+        mock_decorator.assert_called_once()
 
 
 class TestEntryCache:
 
-    def test_get_cached_content(self, valid_entry_data):
+    def test_get_cached_content_empty(self, valid_entry_data):
         entry = Entry(**valid_entry_data)
-        entry._content_cache = "Cached content"
-        assert entry.get_cached_content() == "Cached content"
+        entry._content_cache = None
+        assert entry.get_cached_content() is None

@@ -165,8 +165,11 @@ class Entry(BaseModel, MarkdownBlobMixin):
             return []
         if isinstance(v, str):
             return [v]
-        if isinstance(v, list[dict]):
-            return [tag["term"] for tag in v]
+        if isinstance(v, list):
+            if all(isinstance(tag, str) for tag in v):
+                return v
+            if all(isinstance(tag, dict) for tag in v):
+                return [tag.get("term") for tag in v if "term" in tag]
         raise ValueError(
             "Tags must be a list of strings or a list of dictionaries with 'term' keys.")
 
