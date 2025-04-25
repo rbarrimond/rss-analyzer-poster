@@ -1,7 +1,6 @@
 """Context manager to prevent recursion in a thread-safe manner."""
 import threading
 
-
 class RecursionGuard:
     """Context manager to prevent recursion in a thread-safe manner."""
 

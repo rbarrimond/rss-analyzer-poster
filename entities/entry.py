@@ -45,7 +45,6 @@ logger = LoggerFactory.get_logger(__name__)
 # Define a module-level constant for the sentinel value
 NULL_CONTENT = "\ue000"  # Unicode private use character for missing content
 
-
 class Entry(BaseModel, MarkdownBlobMixin):
     """Represents an RSS entry entity.
 
@@ -71,8 +70,8 @@ class Entry(BaseModel, MarkdownBlobMixin):
         strict=False,
         extra="ignore",
         field_serialization_order=[
-            "PartitionKey",  # Azure Table partition key
-            "RowKey",  # Internal hash ID used as RowKey
+            "PartitionKey",
+            "RowKey",
             "FeedKey",
             "Id",
             "Title",
@@ -82,7 +81,7 @@ class Entry(BaseModel, MarkdownBlobMixin):
             "Tags",
             "Summary",
             "Source",
-            "Content",  # Blob-backed field
+            "Content",
         ],
     )
 
@@ -146,10 +145,8 @@ class Entry(BaseModel, MarkdownBlobMixin):
         return f"{self.partition_key}/{self.row_key}_content.md"
 
     # Private attributes
-    _recursion_guard: threading.local = PrivateAttr(
-        default_factory=threading.local)
-    _http_fetch_lock: threading.Lock = PrivateAttr(
-        default_factory=threading.Lock)
+    _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
+    _http_fetch_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     # Validators
     @field_validator("tags", mode="before")
@@ -349,19 +346,15 @@ class Entry(BaseModel, MarkdownBlobMixin):
                 return None  # Prevent recursion
 
             with self._http_fetch_lock:  # Use the private thread lock
-                logger.debug(
-                    "Retrieving content from HTTP link: %s", self.link)
+                logger.debug("Retrieving content from HTTP link: %s", self.link)
 
                 response = requests.get(self.link, timeout=10)
                 if response.status_code == 200:
-                    logger.debug(
-                        "Content retrieved successfully from HTTP link.")
+                    logger.debug("Content retrieved successfully from HTTP link.")
                     norm_html = normalize_html(response.text)
                     markdown = html_to_markdown(norm_html)
-                    logger.debug(
-                        "Content converted to markdown. Length %d characters.", len(
-                            markdown)
-                    )
+                    logger.debug("Content converted to markdown. Length %d characters.",
+                                 len(markdown))
                     return markdown
                 else:
                     logger.warning(
@@ -380,7 +373,7 @@ class Entry(BaseModel, MarkdownBlobMixin):
         """
         _ = field
         if info.mode == "dict":
-            return None  # Exclude from dict serialization
+            return None  # Exclude from dict serialization (e.g., for Azure Table Storage)
         return value  # Include in JSON serialization
 
 
@@ -492,17 +485,23 @@ class AIEnrichment(BaseModel, NumpyBlobMixin):
         """
         return self._fetch_embeddings_from_blob
 
-    @ensure_cleanup(lambda self: setattr(self._recursion_guard, "active", False))
+    @log_execution_time
     def _fetch_embeddings_from_blob(self) -> Optional[np.ndarray]:
-        if getattr(self._recursion_guard, "active", False):
-            logger.warning(
-                "Recursion detected in _fetch_embeddings_from_blob for AI enrichment %s/%s.",
-                self.partition_key,
-                self.row_key,
-            )
-            return None
-        self._recursion_guard.active = True
-        return self.load_blob()
+        """
+        Retrieve the embeddings numpy array from Azure Blob Storage.
+
+        Uses the RecursionGuard context manager to prevent recursive calls.
+        """
+        with RecursionGuard(self._recursion_guard) as allowed:
+            if not allowed:
+                logger.warning(
+                    "Recursion detected in _fetch_embeddings_from_blob for AI enrichment %s/%s.",
+                    self.partition_key,
+                    self.row_key,
+                )
+                return None  # Prevent recursion
+
+            return self.load_blob()
 
     @log_and_raise_error("Failed to save AI enrichment")
     def save(self, save_embeddings: np.ndarray[Any, Any] = None) -> None:
