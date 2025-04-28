@@ -40,6 +40,9 @@ MAX_SUMMARY_CHARACTERS = 2000
 RSS_ENTRY_CONTAINER_NAME = os.getenv("RSS_ENTRIES_CONTAINER_NAME")
 RSS_ENTRY_TABLE_NAME = os.getenv("RSS_ENTRIES_TABLE_NAME")
 
+if not RSS_ENTRY_CONTAINER_NAME or not RSS_ENTRY_TABLE_NAME:
+    raise EnvironmentError("RSS_ENTRY_CONTAINER_NAME and RSS_ENTRY_TABLE_NAME must be set.")
+
 logger = LoggerFactory.get_logger(__name__)
 
 # Define a module-level constant for the sentinel value
@@ -49,18 +52,18 @@ class Entry(BaseModel, MarkdownBlobMixin):
     """Represents an RSS entry entity.
 
     Attributes:
-        partition_key: Partition key for Azure Table Storage, used to organize entries into logical groups.
-        id: Internal unique identifier of the entry, distinct from the entry's link.
-        feed_key: RowKey of the feed to which this entry belongs, represented as a 16-character hexadecimal string.
-        title: Title of the entry, limited to 200 characters.
-        link: URL link to the entry, validated as a proper HTTP or HTTPS URL.
-        published: Published date of the entry, defaulting to the Unix epoch if not provided.
-        author: Author of the entry, limited to 50 characters.
-        tags: List of tags associated with the entry.
-        summary: Summary of the entry, truncated to a maximum of 2000 characters or 20 sentences.
-        source: Source information for the entry, stored as a dictionary.
-        content: Content of the entry, retrieved from Azure Blob Storage or via HTTP if not cached.
-        row_key: Computed row key derived from the entry's id using xxhash.
+        partition_key (str): Partition key for Azure Table Storage, used to organize entries into logical groups.
+        id (str): Internal unique identifier of the entry, distinct from the entry's link.
+        feed_key (str): RowKey of the feed to which this entry belongs, represented as a 16-character hexadecimal string.
+        title (str): Title of the entry, limited to 200 characters.
+        link (HttpUrl): URL link to the entry, validated as a proper HTTP or HTTPS URL.
+        published (datetime): Published date of the entry, defaulting to the Unix epoch if not provided.
+        author (Optional[str]): Author of the entry, limited to 50 characters.
+        tags (list[str]): List of tags associated with the entry.
+        summary (Optional[str]): Summary of the entry, truncated to a maximum of 2000 characters or 20 sentences.
+        source (Optional[dict]): Source information for the entry, stored as a dictionary.
+        content (Optional[str]): Content of the entry, retrieved from Azure Blob Storage or via HTTP if not cached.
+        row_key (str): Computed row key derived from the entry's id using xxhash.
     """
 
     model_config = ConfigDict(
@@ -138,15 +141,20 @@ class Entry(BaseModel, MarkdownBlobMixin):
 
     @property
     def blob_container(self) -> str:
+        """str: Name of the Azure Blob Storage container for RSS entries."""
         return RSS_ENTRY_CONTAINER_NAME
 
     @cached_property
     def blob_path(self) -> str:
+        """str: Path to the content blob in Azure Blob Storage."""
         return f"{self.partition_key}/{self.row_key}_content.md"
 
     # Private attributes
+    _content: Optional[str] = PrivateAttr(default=None)
     _recursion_guard: threading.local = PrivateAttr(default_factory=threading.local)
     _http_fetch_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    # Add a lock for thread-safe access to _content
+    _content_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     # Validators
     @field_validator("tags", mode="before")
@@ -253,8 +261,7 @@ class Entry(BaseModel, MarkdownBlobMixin):
         alias="Content",
         description="Content of the entry, retrieved from Azure Blob Storage or via HTTP if not cached.",
     )
-    @cached_property
-    def content(self) -> Optional[str]:
+    def content_alias(self) -> Optional[str]:
         """
         Retrieve the content of the entry.
 
@@ -263,14 +270,30 @@ class Entry(BaseModel, MarkdownBlobMixin):
         Returns:
             Optional[str]: The content of the entry, or NULL_CONTENT if not available.
         """
-        return self.fetch_content()
+        return self.content
+
+    @property
+    def content(self) -> Optional[str]:
+        """Lazily load the content of the entry."""
+        with self._content_lock:
+            if self._content is None:
+                logger.debug("Lazy loading content for entry %s/%s", self.partition_key, self.row_key)
+                self._content = self.fetch_content()
+        return self._content
+    
+    @content.setter
+    def content(self, value: Optional[str]) -> None:
+        """
+        Set the content of the entry.
+
+        Args:
+            value (Optional[str]): The content to set.
+        """
+        self._content = value
 
     # Fetch Content
     def fetch_content(self) -> Optional[str]:
         """Fetch the content of the entry from Blob Storage or HTTP.
-
-        Attempts to fetch the content from Azure Blob Storage first.
-        If the content is not available in Blob Storage, it falls back to fetching via HTTP.
 
         Returns:
             Optional[str]: The fetched content, or NULL_CONTENT if not available.
@@ -282,31 +305,20 @@ class Entry(BaseModel, MarkdownBlobMixin):
         logger.warning("Content not available in blob. Trying HTTP fallback.")
         content = self._fetch_content_from_http()
         if content:
-            self._content_cache = content
             self.save_blob(content)
             return content
 
         logger.warning("Content unavailable via both blob and HTTP.")
         return NULL_CONTENT
 
-    # Cache Management
-    def get_cached_content(self) -> Optional[str]:
-        """
-        Retrieve the cached content of the entry.
 
-        Returns:
-            Optional[str]: The cached content, or None if not cached.
-        """
-        return self._content_cache
-
-    # Persistence
     @log_and_raise_error("Failed to save entry")
     def save(self) -> None:
         """Save or update the Entry instance in Azure Table Storage.
 
         Fetches the content if not already cached and persists it to Blob Storage.
         """
-        content = self.get_cached_content() or self.fetch_content()
+        content = self.content  # Triggers lazy loading
         if not content or content == NULL_CONTENT:
             raise ValueError("Content is not available.")
         self.save_blob(content)
@@ -331,13 +343,10 @@ class Entry(BaseModel, MarkdownBlobMixin):
     @log_execution_time
     @log_and_return_default(default_value=None, message="Failed to retrieve content from HTTP")
     def _fetch_content_from_http(self) -> Optional[str]:
-        """
-        Retrieve the content via HTTP from the entry's link.
+        """Retrieve the content via HTTP from the entry's link.
 
-        Attempts to download the entry content with a timeout. If the response status is 200, returns the text;
-        otherwise, raises an HTTP error.
-
-        This method is thread-safe to prevent simultaneous HTTP fetches for the same entry.
+        Returns:
+            Optional[str]: The content in markdown format, or None if retrieval fails.
         """
         with RecursionGuard(self._recursion_guard) as allowed:
             if not allowed:
@@ -366,19 +375,6 @@ class Entry(BaseModel, MarkdownBlobMixin):
                     )
                     logger.debug("Response content: %s", response.text)
                     response.raise_for_status()
-
-    @field_serializer("content", mode="wrap")
-    def serialize_content(self, field, value, info):
-        """
-        Customize the serialization of the 'content' field.
-
-        Exclude the field when dumping to a dictionary but include it when serializing to JSON.
-        """
-        _ = field
-        if info.mode == "dict":
-            return None  # Exclude from dict serialization (e.g., for Azure Table Storage)
-        return value  # Include in JSON serialization
-
 
 class AIEnrichment(BaseModel, NumpyBlobMixin):
     """Represents an AI enrichment entity associated with an RSS entry.
