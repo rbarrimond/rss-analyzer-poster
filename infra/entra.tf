@@ -41,6 +41,12 @@ resource "azuread_application" "rss_feed_analyzer" {
       id   = azuread_service_principal.msgraph.app_role_ids["Mail.Send"]
       type = "Role"
     }
+
+    # Add Sites.Manage.All permission to allow creating lists
+    resource_access {
+      id   = azuread_service_principal.msgraph.app_role_ids["Sites.Manage.All"]
+      type = "Role"
+    }
   }
 
   tags = [ var.resource_suffix ] # Tag the application for easy identification
