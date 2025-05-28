@@ -22,7 +22,6 @@ from pydantic import (
     Field,
     HttpUrl,
     computed_field,
-    field_serializer,
     field_validator,
     PrivateAttr,
 )
